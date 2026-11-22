@@ -1,1 +1,38 @@
 
+name: Unzip and build
+on:
+  push:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Распаковать архив
+        run: |
+          ZIP=$(find . -name "*.zip" -not -path "./.git/*" | head -1)
+          if [ -z "$ZIP" ]; then echo "Архива нет, собираю текущий код"; exit 0; fi
+          echo "Нашёл архив: $ZIP"
+          unzip -q "$ZIP" -d /tmp/src
+          SRC=$(dirname "$(find /tmp/src -name gradlew | head -1)")
+          cp -r "$SRC"/. .
+          rm -f .github/workflows/build.yml
+          git rm -q "$ZIP"
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A
+          git commit -m "Обновление из $ZIP"
+          git push
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Собрать APK
+        run: chmod +x gradlew && ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StitchPad-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
