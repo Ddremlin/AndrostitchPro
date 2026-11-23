@@ -40,7 +40,7 @@ object PatternIO {
 
     fun read(text: String): Pattern {
         val lines = text.lines()
-        require(lines.isNotEmpty() && lines[0].startsWith(MAGIC)) { "Это не файл StitchPad" }
+        require(lines.isNotEmpty() && lines[0].startsWith(MAGIC)) { "Это не файл AndrostitchPro (.stp)" }
         var title = "Без названия"
         var w = 0; var h = 0
         val palette = mutableListOf<PaletteEntry>()

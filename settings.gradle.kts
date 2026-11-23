@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "StitchPad"
+rootProject.name = "AndrostitchPro"
 include(":app")

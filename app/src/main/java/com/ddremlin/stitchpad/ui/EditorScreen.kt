@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -23,6 +24,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
@@ -52,6 +54,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -141,51 +144,57 @@ fun EditorScreen(vm: EditorViewModel) {
                     TextButton(onClick = vm::redo, enabled = vm.redoCount > 0) { Text("↷", fontSize = 22.sp) }
                     Box {
                         IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, "Меню") }
-                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                            val close: (() -> Unit) -> () -> Unit = { action -> { menuOpen = false; action() } }
-                            MenuItem(if (vm.stitchMode) "✓ Режим «вышиваю» — выключить" else "Режим «вышиваю»", close { vm.toggleStitchMode() })
-                            if (vm.stitchMode) MenuItem("Сбросить все отметки", close { vm.resetProgress() })
-                            HorizontalDivider()
-                            MenuItem("Новая схема", close { dialog = DialogState.New })
-                            MenuItem("Мои схемы…", close { dialog = DialogState.Open })
-                            MenuItem("Сохранить", close {
-                                val n = vm.fileName
-                                if (n != null) {
-                                    vm.save(n)
-                                } else {
-                                    dialog = DialogState.Save
-                                }
-                            })
-                            MenuItem("Сохранить как…", close { dialog = DialogState.Save })
-                            HorizontalDivider()
-                            MenuItem("Фото → схема…", close { pickPhoto.launch("image/*") })
-                            MenuItem("Палитры ниток…", close { dialog = DialogState.Palettes })
-                            HorizontalDivider()
-                            if (!vm.stitchMode) {
-                                MenuItem("Выделить всё", close { vm.selectTool(Tool.SELECT); vm.selectAll() })
-                                if (vm.clipboard != null) MenuItem("Вставить", close { vm.paste() })
-                                MenuItem("Отразить ↔", close { vm.mirrorH() })
-                                MenuItem("Отразить ↕", close { vm.mirrorV() })
-                                MenuItem("Повернуть на 90°", close { vm.rotate() })
-                                MenuItem("Размер холста…", close { dialog = DialogState.Resize })
-                                MenuItem("Удалить неиспользуемые цвета", close { vm.removeUnusedColors() })
-                                HorizontalDivider()
+                        // Высота ограничена видимой частью экрана, остальное прокручивается внутри меню
+                        val maxMenuHeight = (LocalConfiguration.current.screenHeightDp * 0.7f).dp
+                        DropdownMenu(
+                            expanded = menuOpen,
+                            onDismissRequest = { menuOpen = false },
+                            modifier = Modifier.heightIn(max = maxMenuHeight),
+                        ) {
+                        val close: (() -> Unit) -> () -> Unit = { action -> { menuOpen = false; action() } }
+                        MenuItem(if (vm.stitchMode) "✓ Режим «вышиваю» — выключить" else "Режим «вышиваю»", close { vm.toggleStitchMode() })
+                        if (vm.stitchMode) MenuItem("Сбросить все отметки", close { vm.resetProgress() })
+                        HorizontalDivider()
+                        MenuItem("Новая схема", close { dialog = DialogState.New })
+                        MenuItem("Мои схемы…", close { dialog = DialogState.Open })
+                        MenuItem("Сохранить", close {
+                            val n = vm.fileName
+                            if (n != null) {
+                                vm.save(n)
+                            } else {
+                                dialog = DialogState.Save
                             }
-                            MenuItem("Экспорт PDF для печати", close { exportPdf.launch("$baseName.pdf") })
-                            MenuItem("Экспорт PNG", close { exportPng.launch("$baseName.png") })
-                            MenuItem("Поделиться файлом .stp", close { exportStp.launch("$baseName.stp") })
-                            MenuItem("Открыть файл .stp", close { openStp.launch(arrayOf("*/*")) })
+                        })
+                        MenuItem("Сохранить как…", close { dialog = DialogState.Save })
+                        HorizontalDivider()
+                        MenuItem("Фото → схема…", close { pickPhoto.launch("image/*") })
+                        MenuItem("Палитры ниток…", close { dialog = DialogState.Palettes })
+                        HorizontalDivider()
+                        if (!vm.stitchMode) {
+                            MenuItem("Выделить всё", close { vm.selectTool(Tool.SELECT); vm.selectAll() })
+                            if (vm.clipboard != null) MenuItem("Вставить", close { vm.paste() })
+                            MenuItem("Отразить ↔", close { vm.mirrorH() })
+                            MenuItem("Отразить ↕", close { vm.mirrorV() })
+                            MenuItem("Повернуть на 90°", close { vm.rotate() })
+                            MenuItem("Размер холста…", close { dialog = DialogState.Resize })
+                            MenuItem("Удалить неиспользуемые цвета", close { vm.removeUnusedColors() })
                             HorizontalDivider()
-                            MenuItem("Размер и расход ниток", close { dialog = DialogState.Stats })
-                            MenuItem("Вид: ${vm.viewMode.label} → сменить", close {
-                                vm.viewMode = ViewMode.entries[(vm.viewMode.ordinal + 1) % ViewMode.entries.size]
-                            })
-                            MenuItem("Вписать в экран", close { vm.requestFit() })
-                            HorizontalDivider()
-                            DropdownMenuItem(
-                                text = { Text("StitchPad ${vm.appVersion}", style = MaterialTheme.typography.labelSmall) },
-                                onClick = {}, enabled = false,
-                            )
+                        }
+                        MenuItem("Экспорт PDF для печати", close { exportPdf.launch("$baseName.pdf") })
+                        MenuItem("Экспорт PNG", close { exportPng.launch("$baseName.png") })
+                        MenuItem("Поделиться файлом .stp", close { exportStp.launch("$baseName.stp") })
+                        MenuItem("Открыть файл .stp", close { openStp.launch(arrayOf("*/*")) })
+                        HorizontalDivider()
+                        MenuItem("Размер и расход ниток", close { dialog = DialogState.Stats })
+                        MenuItem("Вид: ${vm.viewMode.label} → сменить", close {
+                            vm.viewMode = ViewMode.entries[(vm.viewMode.ordinal + 1) % ViewMode.entries.size]
+                        })
+                        MenuItem("Вписать в экран", close { vm.requestFit() })
+                        HorizontalDivider()
+                        DropdownMenuItem(
+                            text = { Text("AndrostitchPro ${vm.appVersion}", style = MaterialTheme.typography.labelSmall) },
+                            onClick = {}, enabled = false,
+                        )
                         }
                     }
                 },

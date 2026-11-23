@@ -1,4 +1,4 @@
-# StitchPad — редактор схем вышивки крестом для Android
+# AndrostitchPro — редактор схем вышивки крестом для Android
 
 Собственное приложение на Kotlin + Jetpack Compose (не порт и не копия чужого кода).
 
