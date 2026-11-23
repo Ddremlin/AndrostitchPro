@@ -12,16 +12,30 @@ android {
         applicationId = "com.ddremlin.stitchpad"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 4
+        versionName = "0.3.1"
+    }
+
+    // Постоянный ключ для тестовых сборок: каждая новая APK ставится поверх старой без удаления.
+    // Для Google Play нужен отдельный секретный ключ, его в репозиторий класть нельзя.
+    signingConfigs {
+        create("dev") {
+            storeFile = rootProject.file("keystore/stitchpad-dev.jks")
+            storePassword = "stitchpad"
+            keyAlias = "stitchpad"
+            keyPassword = "stitchpad"
+        }
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("dev")
+        }
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             // Для публикации в Google Play подпишите своим ключом (signingConfigs).
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("dev")
         }
     }
     compileOptions {

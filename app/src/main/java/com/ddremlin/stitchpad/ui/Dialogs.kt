@@ -44,10 +44,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.sp
 import com.ddremlin.stitchpad.core.ColorMath
 import com.ddremlin.stitchpad.core.Floss
@@ -154,22 +157,55 @@ fun OpenDialog(
 
 @Composable
 fun PhotoImportDialog(
-    imageW: Int, imageH: Int, onDismiss: () -> Unit,
-    onConfirm: (widthStitches: Int, PhotoConverter.Options) -> Unit,
+    preview: ImageBitmap, imageW: Int, imageH: Int, onDismiss: () -> Unit,
+    onConfirm: (widthStitches: Int, crop: Rect, PhotoConverter.Options) -> Unit,
 ) {
-    var width by remember { mutableFloatStateOf(minOf(100, imageW).coerceAtLeast(20).toFloat()) }
+    var aspect by remember { mutableStateOf(CropAspect.FREE) }
+    var crop by remember { mutableStateOf(Rect(0f, 0f, 1f, 1f)) }
+    var width by remember { mutableFloatStateOf(100f) }
     var colors by remember { mutableFloatStateOf(20f) }
     var dither by remember { mutableStateOf(false) }
     var skipWhite by remember { mutableStateOf(false) }
-    val w = width.roundToInt()
-    val h = (imageH.toDouble() * w / imageW).roundToInt().coerceAtLeast(1)
+
+    val cropW = (crop.width * imageW).coerceAtLeast(1f)
+    val cropH = (crop.height * imageH).coerceAtLeast(1f)
+    val maxW = cropW.roundToInt().coerceIn(21, 400)
+    val w = width.roundToInt().coerceIn(20, maxW)
+    val h = (cropH.toDouble() * w / cropW).roundToInt().coerceAtLeast(1)
+
     AlertDialog(
         onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier.fillMaxWidth(0.95f),
         title = { Text("Фото → схема") },
         text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
+            Column {
+                // Окно обрезки вне прокрутки, чтобы жесты не перехватывались
+                CropEditor(preview, crop, aspect.ratio, onCropChange = { crop = it })
+                Text(
+                    "Проведите по фото пальцем, чтобы выделить область. Тяните за уголки или стороны, внутри рамки — перемещение.",
+                    style = MaterialTheme.typography.labelSmall,
+                )
+                Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+                Spacer(Modifier.size(8.dp))
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                    CropAspect.entries.forEachIndexed { i, a ->
+                        SegmentedButton(
+                            selected = aspect == a,
+                            onClick = { aspect = a; crop = defaultCrop(a.ratio, imageW, imageH) },
+                            shape = SegmentedButtonDefaults.itemShape(i, CropAspect.entries.size),
+                        ) { Text(a.label, fontSize = 12.sp) }
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Обрезка: ${cropW.roundToInt()}×${cropH.roundToInt()} px",
+                        style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = { aspect = CropAspect.FREE; crop = Rect(0f, 0f, 1f, 1f) }) { Text("Сбросить") }
+                }
                 Text("Ширина: $w крестиков (высота $h)")
-                Slider(width, { width = it }, valueRange = 20f..minOf(400, maxOf(20, imageW)).toFloat().coerceAtLeast(21f))
+                Slider(w.toFloat(), { width = it }, valueRange = 20f..maxW.toFloat())
                 Text(
                     String.format(Locale.US, "Размер на Aida 14: %.1f × %.1f см", FlossUsage.sizeCm(w, 14), FlossUsage.sizeCm(h, 14)),
                     style = MaterialTheme.typography.bodySmall,
@@ -187,11 +223,12 @@ fun PhotoImportDialog(
                     "Совет: для портретов 30–50 цветов, для мультяшных картинок 8–15 без сглаживания.",
                     style = MaterialTheme.typography.bodySmall,
                 )
+                }
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                onConfirm(w, PhotoConverter.Options(maxColors = colors.roundToInt(), dither = dither, skipWhiteBackground = skipWhite))
+                onConfirm(w, crop, PhotoConverter.Options(maxColors = colors.roundToInt(), dither = dither, skipWhiteBackground = skipWhite))
             }) { Text("Создать") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },

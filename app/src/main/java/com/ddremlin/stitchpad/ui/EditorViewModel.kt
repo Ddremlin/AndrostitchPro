@@ -3,11 +3,16 @@ package com.ddremlin.stitchpad.ui
 import android.app.Application
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
 import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ddremlin.stitchpad.core.Backstitch
@@ -57,6 +62,10 @@ class EditorViewModel(app: Application) : AndroidViewModel(app) {
     var fitRequest by mutableIntStateOf(0); private set
     var undoCount by mutableIntStateOf(0); private set
     var redoCount by mutableIntStateOf(0); private set
+
+    val appVersion: String = runCatching {
+        app.packageManager.getPackageInfo(app.packageName, 0).versionName
+    }.getOrNull() ?: "?"
 
     private val undoStack = ArrayDeque<Pattern>()
     private val redoStack = ArrayDeque<Pattern>()
@@ -333,22 +342,62 @@ class EditorViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------------- Фото → схема ----------------
 
-    /** Размер картинки без полной загрузки. */
+    /** Поворот снимка по EXIF (камера телефона часто пишет фото «боком»). */
+    private fun orientationDegrees(uri: Uri): Int = runCatching {
+        getApplication<Application>().contentResolver.openInputStream(uri)!!.use {
+            when (ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
+                ExifInterface.ORIENTATION_ROTATE_90, ExifInterface.ORIENTATION_TRANSPOSE -> 90
+                ExifInterface.ORIENTATION_ROTATE_180 -> 180
+                ExifInterface.ORIENTATION_ROTATE_270, ExifInterface.ORIENTATION_TRANSVERSE -> 270
+                else -> 0
+            }
+        }
+    }.getOrDefault(0)
+
+    /** Размер картинки (с учётом поворота) без полной загрузки. */
     fun imageSize(uri: Uri): Pair<Int, Int>? = runCatching {
         val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         getApplication<Application>().contentResolver.openInputStream(uri)!!.use { BitmapFactory.decodeStream(it, null, opts) }
-        if (opts.outWidth > 0 && opts.outHeight > 0) opts.outWidth to opts.outHeight else null
+        if (opts.outWidth <= 0 || opts.outHeight <= 0) return@runCatching null
+        val deg = orientationDegrees(uri)
+        if (deg == 90 || deg == 270) opts.outHeight to opts.outWidth else opts.outWidth to opts.outHeight
     }.getOrNull()
 
-    fun importPhoto(uri: Uri, widthStitches: Int, opt: PhotoConverter.Options) {
+    /** Загрузка с уменьшением в sample раз и поворотом по EXIF. */
+    private fun decodeOriented(uri: Uri, sample: Int): Bitmap {
+        val opts = BitmapFactory.Options().apply { inSampleSize = sample; inPreferredConfig = Bitmap.Config.ARGB_8888 }
+        val bmp = getApplication<Application>().contentResolver.openInputStream(uri)!!
+            .use { BitmapFactory.decodeStream(it, null, opts) } ?: error("формат не поддерживается")
+        val deg = orientationDegrees(uri)
+        if (deg == 0) return bmp
+        val m = Matrix().apply { postRotate(deg.toFloat()) }
+        val rotated = Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, m, true)
+        if (rotated != bmp) bmp.recycle()
+        return rotated
+    }
+
+    /** Превью для окна обрезки (не больше ~1200 px по длинной стороне). */
+    fun loadPreview(uri: Uri): ImageBitmap? = runCatching {
+        val (iw, ih) = imageSize(uri) ?: return@runCatching null
+        var sample = 1
+        while (maxOf(iw, ih) / (sample * 2) >= 1200) sample *= 2
+        decodeOriented(uri, sample).asImageBitmap()
+    }.getOrNull()
+
+    /**
+     * crop — область в долях картинки (0..1). Высота схемы считается по пропорциям обрезанной области.
+     */
+    fun importPhoto(uri: Uri, widthStitches: Int, crop: Rect, opt: PhotoConverter.Options) {
         busy = true
         viewModelScope.launch {
             val result = withContext(Dispatchers.Default) {
                 runCatching {
                     val (iw, ih) = imageSize(uri) ?: error("не удалось прочитать картинку")
+                    val c = normalizeCrop(crop)
+                    val cw = c.width * iw; val ch = c.height * ih
                     val w = widthStitches.coerceIn(5, Pattern.MAX_SIZE)
-                    val h = (ih.toDouble() * w / iw).roundToInt().coerceIn(1, Pattern.MAX_SIZE)
-                    val bmp = decodeScaled(uri, w, h)
+                    val h = (ch.toDouble() * w / cw).roundToInt().coerceIn(1, Pattern.MAX_SIZE)
+                    val bmp = decodeScaled(uri, w, h, c, cw, ch)
                     val pixels = IntArray(w * h)
                     bmp.getPixels(pixels, 0, w, 0, 0, w, h)
                     bmp.recycle()
@@ -365,14 +414,26 @@ class EditorViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Загружает картинку и плавно уменьшает до w×h (по шагам, чтобы усреднять цвета). */
-    private fun decodeScaled(uri: Uri, w: Int, h: Int): Bitmap {
-        val cr = getApplication<Application>().contentResolver
-        val (iw, ih) = imageSize(uri) ?: error("нет картинки")
+    private fun normalizeCrop(r: Rect): Rect {
+        val l = r.left.coerceIn(0f, 0.99f); val t = r.top.coerceIn(0f, 0.99f)
+        return Rect(l, t, r.right.coerceIn(l + 0.01f, 1f), r.bottom.coerceIn(t + 0.01f, 1f))
+    }
+
+    /** Загружает, обрезает и плавно уменьшает до w×h (по шагам, чтобы усреднять цвета). */
+    private fun decodeScaled(uri: Uri, w: Int, h: Int, crop: Rect, cropW: Float, cropH: Float): Bitmap {
         var sample = 1
-        while (iw / (sample * 2) >= w * 2 && ih / (sample * 2) >= h * 2) sample *= 2
-        val opts = BitmapFactory.Options().apply { inSampleSize = sample; inPreferredConfig = Bitmap.Config.ARGB_8888 }
-        var bmp = cr.openInputStream(uri)!!.use { BitmapFactory.decodeStream(it, null, opts) } ?: error("формат не поддерживается")
+        while (cropW / (sample * 2) >= w * 2 && cropH / (sample * 2) >= h * 2) sample *= 2
+        var bmp = decodeOriented(uri, sample)
+        val isFull = crop.left <= 0f && crop.top <= 0f && crop.right >= 1f && crop.bottom >= 1f
+        if (!isFull) {
+            val x = (crop.left * bmp.width).roundToInt().coerceIn(0, bmp.width - 1)
+            val y = (crop.top * bmp.height).roundToInt().coerceIn(0, bmp.height - 1)
+            val cw = (crop.width * bmp.width).roundToInt().coerceIn(1, bmp.width - x)
+            val ch = (crop.height * bmp.height).roundToInt().coerceIn(1, bmp.height - y)
+            val cropped = Bitmap.createBitmap(bmp, x, y, cw, ch)
+            if (cropped != bmp) bmp.recycle()
+            bmp = cropped
+        }
         while (bmp.width / 2 >= w && bmp.height / 2 >= h) {
             val next = Bitmap.createScaledBitmap(bmp, bmp.width / 2, bmp.height / 2, true)
             if (next != bmp) bmp.recycle()

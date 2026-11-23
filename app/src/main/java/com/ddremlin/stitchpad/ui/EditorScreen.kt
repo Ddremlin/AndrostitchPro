@@ -49,6 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -62,7 +63,7 @@ private sealed interface DialogState {
     data object Save : DialogState
     data object AddColor : DialogState
     data object Stats : DialogState
-    data class Photo(val uri: Uri, val w: Int, val h: Int) : DialogState
+    data class Photo(val uri: Uri, val w: Int, val h: Int, val preview: ImageBitmap) : DialogState
     data class ColorInfo(val index: Int) : DialogState
     data class ReplaceColor(val index: Int) : DialogState
 }
@@ -82,8 +83,12 @@ fun EditorScreen(vm: EditorViewModel) {
     val pickPhoto = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
             val size = vm.imageSize(uri)
-            if (size == null) vm.message = "Не удалось прочитать картинку"
-            else dialog = DialogState.Photo(uri, size.first, size.second)
+            val preview = vm.loadPreview(uri)
+            if (size == null || preview == null) {
+                vm.message = "Не удалось прочитать картинку"
+            } else {
+                dialog = DialogState.Photo(uri, size.first, size.second, preview)
+            }
         }
     }
     val openStp = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -147,6 +152,8 @@ fun EditorScreen(vm: EditorViewModel) {
                                 vm.viewMode = ViewMode.entries[(vm.viewMode.ordinal + 1) % ViewMode.entries.size]
                             })
                             MenuItem("Вписать в экран", close { vm.requestFit() })
+                            HorizontalDivider()
+                            DropdownMenuItem(text = { Text("StitchPad ${vm.appVersion}", style = MaterialTheme.typography.labelSmall) }, onClick = {}, enabled = false)
                         }
                     }
                 },
@@ -199,8 +206,8 @@ fun EditorScreen(vm: EditorViewModel) {
             onPick = { vm.addFloss(it); dialog = DialogState.None },
         )
         DialogState.Stats -> StatsDialog(p) { dialog = DialogState.None }
-        is DialogState.Photo -> PhotoImportDialog(d.w, d.h, { dialog = DialogState.None }) { w, opt ->
-            vm.importPhoto(d.uri, w, opt); dialog = DialogState.None
+        is DialogState.Photo -> PhotoImportDialog(d.preview, d.w, d.h, { dialog = DialogState.None }) { w, crop, opt ->
+            vm.importPhoto(d.uri, w, crop, opt); dialog = DialogState.None
         }
         is DialogState.ColorInfo -> {
             val entry = p.palette.getOrNull(d.index)
