@@ -1,0 +1,446 @@
+1;White Bright;255;255;255
+2;White;250;250;250
+6;Peach Very Light;247;209;196
+8;Peach Light;248;174;167
+9;Coral Very Light;244;148;142
+10;Coral Light;230;103;100
+11;Coral Medium;232;84;90
+13;Coral Dark;196;45;50
+19;Pink Bright Ultra Very;178;36;44
+20;Garnet Light;134;25;29
+22;Garnet;92;19;23
+23;Baby Pink Very Light;248;197;194
+24;Baby Pink Light;245;182;188
+25;Baby Pink;247;167;181
+26;Baby Pink Medium;247;144;160
+27;Baby Pink Dark;245;120;143
+28;Baby Pink Very Dark;236;72;88
+29;Baby Pink Ultra Very Dark;217;46;65
+31;Pink Bright Light;245;132;145
+33;Pink Bright;244;111;113
+35;Pink Bright Dark;234;71;76
+36;Pink Bright Very Light;243;161;168
+38;Dusty Pink;231;75;94
+39;Dusty Pink Dark;187;53;66
+40;Rose;242;102;129
+41;Rose Dark;229;64;101
+42;Rose Very Dark;190;40;59
+43;Garnet Medium;141;29;43
+44;Garnet Dark;109;19;24
+45;Garnet Very Dark;92;20;25
+46;Christmas Red Light;209;37;43
+47;Christmas Red;189;34;40
+48;Pink Very Light;246;210;211
+49;Pink Light;238;180;189
+50;Pink;246;165;179
+52;Pink Dark;246;136;159
+54;Pink Very Dark;236;73;102
+55;Pink Mauve Light;245;147;173
+57;Pink Mauve Medium Dark;220;72;103
+59;Pink Mauve Ultra Very Dark;176;40;58
+60;Cerise Ultra Very Light;233;158;179
+62;Cerise Light;228;98;134
+63;Cerise;217;66;117
+65;Cerise Ultra Very Dark;161;31;52
+66;Dusty Plum Light;229;148;172
+68;Dusty Plum Medium;196;68;97
+69;Dusty Plum Medium Dark;163;40;59
+70;Dusty Plum Very Dark;92;19;34
+72;Dusty Plum Ultra Very Dark;74;20;30
+73;Plum Ultra Very Light;242;191;195
+74;Plum Very Light;231;149;165
+75;Plum Light;243;154;172
+76;Plum Medium Light;221;104;130
+77;Plum Medium;195;64;94
+78;Plum Medium Dark;185;46;76
+85;Mauve Very Light;237;177;208
+86;Mauve Medium Light;218;135;182
+87;Mauve;195;85;143
+88;Mauve Medium;185;63;122
+89;Mauve Dark;170;41;93
+90;Purple Light;217;162;190
+92;Purple Medium;165;79;141
+94;Purple Dark;124;44;106
+95;Violet Ultra Very Light;227;183;209
+96;Violet Very Light;215;150;190
+97;Violet Light;196;127;178
+98;Violet Medium Light;172;105;163
+99;Violet Medium Dark;126;60;126
+100;Violet Dark;129;59;121
+101;Violet Very Dark;95;39;96
+102;Lavender Ultra Very Dark;55;24;74
+103;Purple Very Light;236;205;220
+108;Lavender Very Light;199;174;211
+109;Lavender Light;161;133;181
+110;Lavender Medium;140;112;173
+111;Lavender Dark;97;67;136
+112;Lavender Very Dark;74;48;119
+117;Blue Violet Very Light;170;178;214
+118;Blue Violet Light;141;142;196
+119;Blue Violet Dark;64;59;128
+120;Blue Purple Very Light;189;206;228
+121;Blue Purple Light;142;160;201
+122;Blue Purple Medium;91;96;143
+123;Blue Purple Dark;54;58;107
+127;Navy Blue Very Dark;25;22;42
+128;Sky Blue Very Light;197;214;227
+129;Sky Blue Light;165;191;223
+130;Sky Blue;152;180;217
+131;Sky Blue Medium;101;130;188
+132;Sky Blue Dark;50;79;148
+133;Sky Blue Very Dark;47;64;132
+134;Sky Blue Ultra Dark;42;47;108
+136;Delft Medium;102;132;178
+137;Delft Medium Dark;70;100;156
+139;Delft Very Dark;44;58;120
+140;Royal Blue Light;143;174;216
+142;Royal Blue Medium;71;114;176
+143;Royal Blue Dark;48;76;139
+144;Navy Blue Ultra Very Light;166;191;218
+145;Navy Blue Very Light;133;164;204
+146;Navy Blue Light;97;128;186
+147;Navy Blue Medium Light;53;77;143
+148;Navy Blue Medium;41;66;115
+149;Navy Blue Medium Dark;30;42;86
+150;Navy Blue Dark;21;32;63
+152;Navy Blue Ultra Very Dark;23;21;33
+158;Baby Blue Ultra Very Light;205;224;224
+159;Baby Blue Light;181;207;228
+160;Baby Blue;169;202;224
+161;Baby Blue Dark;119;166;199
+162;Baby Blue Very Dark;55;108;157
+164;Baby Blue Ultra Very Dark;36;67;118
+167;Blue Green Light;160;203;212
+168;Blue Green Medium;114;169;187
+169;Blue Green Dark;59;116;157
+170;Blue Green Very Dark;31;76;119
+175;Cornflower Blue Light;143;168;208
+176;Cornflower Blue Medium;116;132;179
+177;Cornflower Blue Dark;72;80;145
+178;Cornflower Blue Very D;52;52;108
+185;Turquoise Very Light;148;212;208
+186;Turquoise Light;124;201;195
+187;Turquoise Medium;88;187;184
+188;Turquoise Dark;49;150;143
+189;Turquoise Very Dark;35;134;131
+203;Emerald Green Ultra Very Light;158;202;168
+204;Emerald Green Very Light;133;186;154
+205;Emerald Green Light;94;164;129
+206;Jade Very Light;181;212;189
+208;Jade Light;131;178;152
+209;Jade Medium;109;173;138
+210;Jade Medium Dark;80;127;95
+211;Jade Dark;56;107;79
+212;Jade Very Dark;43;85;66
+213;Misty Green Ultra Very Light;200;202;180
+214;Misty Green Very Light;173;187;161
+215;Misty Green Light;121;147;125
+216;Misty Green Medium;102;130;109
+217;Misty Green Dark;59;97;75
+218;Misty Green Very Dark;40;69;54
+225;Christmas Green Very Light;131;191;128
+226;Christmas Green Light;106;167;102
+227;Christmas Green;66;145;86
+228;Christmas Green Medium;44;131;82
+229;Christmas Green Dark;35;117;69
+230;Emerald Green;32;119;85
+231;Shell Grey Light;201;181;177
+232;Shell Grey Medium;184;163;162
+233;Shell Grey Dark;145;122;123
+234;Pearl Grey Very Light;206;199;197
+235;Pewter Grey;142;138;140
+236;Pewter Grey Very Dark;63;56;62
+238;Chartreuse;100;167;87
+239;Chartreuse Very Dark;91;158;76
+240;Pistachio Green Light;181;204;152
+241;Pistachio Green;157;196;141
+242;Pistachio Green Medium;133;178;126
+243;Pistachio Green Medium Dark;105;161;110
+244;Pistachio Green Medium;83;136;85
+245;Pistachio Green Dark;52;110;59
+246;Pistachio Green Very Dark;40;81;45
+253;Forest Green Ultra Very Light;211;218;138
+254;Forest Green Very Light;199;210;123
+255;Forest Green Light;153;174;66
+256;Forest Green Medium;121;157;64
+257;Forest Green Dark;104;141;74
+258;Forest Green Very Dark;83;127;67
+259;Laurel Green Very Light;224;222;176
+260;Laurel Green Light;201;201;157
+261;Laurel Green Medium;165;176;135
+262;Laurel Green Dark;93;103;71
+263;Loden Green Dark;55;64;38
+264;Avocado Green Ultra Very Light;195;203;155
+265;Avocado Green Very Light;169;184;124
+266;Avocado Green Light;147;160;98
+267;Avocado Green Medium;113;126;69
+268;Avocado Green Dark;79;90;48
+269;Avocado Green Very Dark;66;70;42
+271;Baby Pink Ultra Very L;244;219;212
+273;Beaver Grey Very Dark;82;71;63
+274;Grey Blue Very Light;201;206;202
+275;Off White;238;225;200
+276;Coffee Ultra Very Light;237;214;192
+277;Gold Dark;131;74;30
+278;Lime Green Light;221;210;112
+279;Lime Green;210;184;76
+280;Yellow Green;180;164;75
+281;Yellow Green Dark;119;102;44
+288;Lemon Light;244;224;118
+289;Lemon Medium;242;222;108
+290;Lemon Dark;243;211;60
+291;Canary Yellow Bright;249;197;37
+292;Golden Brown Very Light;239;224;178
+293;Golden Yellow Light;240;208;119
+295;Golden Yellow Medium Light;244;214;117
+297;Golden Yellow Medium;246;187;57
+298;Golden Yellow Dark;246;193;45
+300;Yellow Very Light;243;223;179
+301;Burnt Orange Very Light;245;214;143
+302;Burnt Orange Light;249;188;79
+303;Burnt Orange Medium;249;163;39
+304;Burnt Orange;241;129;24
+305;Topaz Very Light;246;207;114
+306;Gold;238;168;59
+307;Topaz Light;222;136;34
+308;Topaz Medium;195;100;25
+309;Topaz Medium Dark;169;79;27
+310;Topaz Very Dark;148;65;28
+311;Tangerine Very Light;244;193;121
+313;Tangerine Light;247;173;87
+314;Tangerine Medium;249;140;32
+316;Tangerine Dark;239;105;21
+323;Orange Spice Light;252;148;92
+324;Orange Spice Medium;244;115;48
+326;Orange Spice Dark;208;59;26
+328;Peach Medium;249;129;93
+329;Peach Dark;251;110;58
+330;Orange;249;93;40
+332;Orange Dark;244;84;35
+333;Orange Very Dark;232;59;43
+334;Orange Red Very Dark;226;45;35
+335;Orange Red;224;45;43
+336;Mahogany Ultra Very Light;241;173;141
+337;Mahogany Very Light;225;128;96
+338;Mahogany Light;219;100;76
+339;Mahogany;194;68;51
+340;Mahogany Medium Dark;175;46;41
+341;Mahogany Dark;170;44;38
+342;Lavender Ultra Very Light;219;199;218
+343;Antique Blue Light;164;179;191
+347;Chocolate Light;221;159;116
+349;Chocolate Medium;174;80;45
+351;Copper Dark;132;44;29
+352;Copper Very Dark;101;32;23
+355;Chocolate Medium Dark;150;66;40
+357;Chocolate Dark;119;46;27
+358;Coffee Dark;115;53;36
+359;Coffee Very Dark;94;44;29
+360;Black Brown Medium;75;36;27
+361;Tan Very Light;236;198;157
+362;Tan Medium Light;222;166;115
+363;Golden Brown Light;228;159;93
+365;Golden Brown Medium;183;101;49
+366;Coffee Very Light;230;202;169
+367;Coffee Light;226;182;148
+368;Coffee;207;155;113
+369;Coffee Medium Light;199;127;89
+370;Coffee Medium;145;62;36
+371;Coffee Medium Dark;134;58;35
+372;Tan;208;170;131
+373;Tan Medium Dark;180;133;92
+374;Tan Dark;170;113;72
+375;Hazelnut Brown Medium;144;87;49
+376;Dusty Flesh Light;212;174;156
+378;Dusty Flesh Medium;177;132;112
+379;Dusty Flesh Dark;158;107;87
+380;Black Brown Medium Dark;56;26;22
+381;Black Brown Dark;46;22;19
+382;Black Brown Very Dark;48;29;26
+386;Yellow Ultra Very Light;224;208;177
+387;Beige Brown Very Light;231;215;192
+388;Beige Brown Light;210;184;163
+390;Beige Grey Light;224;207;184
+391;Beige Grey Medium;212;193;169
+392;Beige Grey Dark;170;150;128
+393;Beige Grey Ultra Very Dark;134;112;98
+397;Pearl Grey Ultra Very Light;212;206;199
+398;Pearl Grey;188;186;184
+399;Steel Grey Light;169;160;161
+400;Pewter Grey Dark;101;91;100
+401;Shell Grey Very Dark;59;51;60
+403;Black;21;20;21
+410;Electric Blue Dark;56;138;202
+433;Electric Blue Medium;89;180;224
+681;Green Grey;89;84;57
+683;Misty Green Ultra Very Dark;40;56;50
+778;Flesh Very Light;238;205;181
+779;Grey Blue Very Dark;106;139;150
+830;Drab Brown Very Light;212;199;173
+831;Drab Brown Light;207;191;162
+832;Drab Brown Medium;155;126;99
+842;Khaki Green Light;200;195;152
+843;Khaki Green Medium Light;155;147;92
+844;Khaki Green Medium;131;121;70
+845;Khaki Green Medium Dark;102;92;51
+846;Khaki Green Dark;61;59;34
+847;Grey Blue Ultra Very Light;210;214;208
+848;Grey Blue Light;189;191;189
+849;Grey Blue Medium;162;170;172
+850;Grey Blue Dark;133;157;158
+851;Grey Blue Ultra Very Dark;58;89;106
+852;Avocado Ultra Very Light;221;206;172
+853;Avocado Very Light;190;174;137
+854;Avocado Light;177;159;117
+855;Avocado Medium;153;128;82
+856;Yellow Green Medium;128;110;71
+858;Fern Green Very Light;175;180;153
+859;Fern Green Light;145;147;117
+860;Fern Green Medium;123;126;99
+861;Fern Green Dark;82;86;62
+862;Fern Green Very Dark;45;50;36
+868;Peach Flesh;234;172;151
+869;Antique Violet Very Light;207;179;189
+870;Antique Violet Light;186;159;176
+871;Antique Violet Medium;148;110;132
+872;Antique Violet Medium Dark;128;86;111
+873;Antique Violet Dark;81;44;60
+874;Gold Very Light;220;183;113
+875;Sea Foam Green Light;172;188;172
+876;Sea Foam Green Medium;118;149;133
+877;Sea Foam Green Dark;81;116;101
+878;Sea Foam Green Very Dark;60;88;74
+879;Sea Foam Green Ultra Very Dark;34;64;54
+880;Cream Medium;229;198;172
+881;Cream Dark;230;199;173
+882;Antique Mahogany Light;224;159;133
+883;Antique Mahogany;201;121;94
+884;Antique Mahogany Dark;182;76;55
+885;Yellow Beige Very Light;208;191;163
+886;Yellow Beige Light;221;194;150
+887;Yellow Beige Medium;212;181;133
+888;Hazelnut Brown Light;176;133;80
+889;Drab Brown Very Dark;110;69;41
+890;Old Gold Medium;213;154;84
+891;Old Gold Light;232;182;121
+892;Shell Pink Very Light;235;209;193
+893;Shell Pink Light;233;186;180
+894;Shell Pink Medium Light;226;154;154
+895;Shell Pink Medium;216;126;129
+896;Shell Pink;157;55;65
+897;Shell Pink Very Dark;108;28;33
+898;Drab Brown Dark;145;113;78
+899;Brown Grey Light;187;168;148
+900;Beaver Grey Light;192;190;178
+901;Old Gold Dark;191;123;63
+903;Brown Grey Medium;137;108;81
+904;Brown Grey Medium;91;73;54
+905;Brown Grey Dark;68;50;36
+906;Hazelnut Brown Dark;93;52;28
+907;Gold Medium;192;135;65
+914;Flesh Dark;202;132;108
+920;Antique Blue Medium Light;137;162;178
+921;Antique Blue Medium;115;135;151
+922;Antique Blue Dark;95;103;119
+923;Christmas Green Very Dark;26;88;61
+924;Yellow Green Very Dark;103;93;47
+925;Yellow Green Very Dark;240;100;40
+926;Beige Brown Ultra Very Light;219;206;187
+928;Blue Green Very Light;178;216;226
+933;Dusty Flesh Very Light;230;213;192
+936;Dusty Flesh Very Dark;125;59;45
+939;Blue Grey;134;144;176
+940;Delft Dark;64;85;143
+941;Cornflower Blue Medium;68;70;128
+942;Tan Light;233;196;154
+943;Tan Medium;198;151;100
+944;Tan Very Dark;131;71;41
+945;Yellow Green Very Light;207;172;117
+956;Yellow Green Ultra Very Light;212;191;154
+968;Dusty Violet Light;236;194;191
+969;Dusty Violet Medium;214;144;151
+970;Dusty Violet Dark;173;85;103
+972;Dusty Violet Very Dark;152;45;71
+975;Blue Very Light;190;204;208
+976;Blue Light;161;183;196
+977;Blue Medium;127;163;198
+978;Blue Dark;89;121;157
+979;Blue Very Dark;63;91;133
+1001;Golden Brown;219;124;61
+1002;Golden Brown Very Light;234;155;82
+1003;Salmon;230;118;64
+1004;Orange Spice Very Dark;192;68;46
+1005;Christmas Red Ultra Very Dark;151;28;35
+1006;Dusty Rose Very Dark;165;31;38
+1007;Flesh Very Dark;176;103;85
+1008;Flesh Medium;220;162;142
+1009;Cream;245;220;193
+1010;Copper Very Light;243;213;181
+1011;Peach Flesh Very Light;228;202;183
+1012;Flesh;247;214;194
+1013;Terracotta;213;118;99
+1014;Mahogany Very Dark;165;37;38
+1015;Mahogany Ultra Very Dark;147;28;31
+1016;Antique Mauve Very Light;220;158;167
+1017;Antique Mauve Medium;198;134;141
+1018;Antique Mauve Light;169;94;104
+1019;Antique Mauve Dark;132;53;61
+1020;Dusty Rose Ultra Very Light;245;205;203
+1021;Dusty Rose Very Light;241;188;187
+1022;Dusty Rose Light;236;151;146
+1023;Dusty Rose;224;115;119
+1024;Dusty Rose Medium;217;89;96
+1025;Dusty Rose Dark;191;43;52
+1026;Dusty Violet Very Light;237;207;202
+1027;Shell Pink Medium Dark;189;86;94
+1028;Dusty Plum Dark;116;24;44
+1029;Plum Dark;118;23;48
+1030;Blue Violet Medium;134;116;178
+1031;Antique Blue Ultra Very Light;213;224;229
+1032;Antique Blue Very Light;195;211;220
+1033;Antique Blue;175;192;207
+1034;Antique Blue Medium Dark;121;142;164
+1035;Antique Blue Very Dark;69;81;102
+1036;Antique Blue Ultra Very Dark;49;64;93
+1037;Blue Ultra Very Light;222;225;223
+1038;Baby Blue Medium;145;189;211
+1039;Baby Blue Medium Dark;115;168;199
+1040;Beaver Grey Dark;157;153;142
+1041;Beaver Grey Ultra Dark;61;59;55
+1042;Sea Foam Green Very Light;206;215;196
+1043;Pistachio Green Very Light;206;220;175
+1044;Pistachio Green Ultra Very Dark;47;63;37
+1045;Golden Brown Medium Light;208;144;87
+1046;Golden Brown Medium Dark;191;108;55
+1047;Copper Light;238;164;103
+1048;Copper Medium;211;109;64
+1049;Copper Medium Dark;193;93;54
+1050;Mocha Brown Dark;96;57;42
+1060;Teal Ultra Light;197;215;219
+1062;Teal Light;145;182;192
+1064;Teal Medium Light;116;158;173
+1066;Teal Medium;58;104;125
+1068;Teal;44;88;106
+1070;Jade Light;129;198;191
+1072;Jade Medium Light;115;185;173
+1074;Jade Medium;88;160;151
+1076;Jade;61;134;126
+1080;Taupe Ultra Light;216;187;163
+1082;Taupe Medium Light;183;151;130
+1084;Taupe;160;120;100
+1085;Taupe Dark;145;116;82
+1086;Taupe Medium Dark;105;75;58
+1088;Taupe Very Dark;62;37;30
+1089;Electric Blue Medium;62;169;221
+1090;Electric Blue Light;121;197;236
+1092;Teal Light;194;225;223
+1094;Pink Medium Light;243;173;192
+1096;Blue Grey Light;194;204;209
+1098;Red;225;48;51
+1201;Desert Sand Light;244;169;183
+4146;Flesh Light;233;188;168
+5975;Terracotta Dark;196;72;60
+8581;Beaver Grey Medium;122;121;100
+9046;Christmas Red Bright;208;36;42
+9159;Baby Blue Very Light;165;194;207
+9575;Terracotta Light;234;156;128

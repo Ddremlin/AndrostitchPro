@@ -250,7 +250,7 @@ fun EditorScreen(vm: EditorViewModel) {
         )
         DialogState.Stats -> StatsDialog(p) { dialog = DialogState.None }
         DialogState.Palettes -> PalettesDialog(
-            vm.catalogs, vm.activeBrand,
+            vm.catalogs, vm.activeBrand, vm.builtInBrands,
             onDismiss = { dialog = DialogState.None },
             onSelect = { vm.activeBrand = it },
             onConvert = { vm.convertPalette(it); dialog = DialogState.None },
@@ -271,7 +271,10 @@ fun EditorScreen(vm: EditorViewModel) {
                 val row = remember(d.index, rev) { FlossUsage.calculate(p).getOrNull(d.index) }
                 val prog = remember(d.index, rev) { p.progress().getOrNull(d.index) }
                 val equivalents = remember(d.index, rev, vm.catalogs) {
-                    vm.catalogs.filter { it.brand != entry.floss.brand }.map { it.nearest(entry.floss.rgb) }
+                    vm.catalogs.filter { it.brand != entry.floss.brand }.map { cat ->
+                        val (f, official) = vm.equivalent(entry.floss, cat)
+                        "${f.label}" + if (official) " (по таблице)" else " (≈ по цвету)"
+                    }
                 }
                 ColorEntryDialog(
                     entry, row?.summary() ?: "", prog, equivalents,

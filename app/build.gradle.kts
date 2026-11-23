@@ -12,8 +12,8 @@ android {
         applicationId = "com.ddremlin.stitchpad"
         minSdk = 26
         targetSdk = 35
-        versionCode = 8
-        versionName = "0.4.3"
+        versionCode = 10
+        versionName = "0.5.1"
     }
 
     // Постоянный ключ для тестовых сборок: каждая новая APK ставится поверх старой без удаления.

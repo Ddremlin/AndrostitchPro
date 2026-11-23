@@ -19,6 +19,8 @@ import androidx.lifecycle.viewModelScope
 import com.ddremlin.stitchpad.core.Backstitch
 import com.ddremlin.stitchpad.core.CellRect
 import com.ddremlin.stitchpad.core.Clip
+import com.ddremlin.stitchpad.core.ConversionTable
+import com.ddremlin.stitchpad.core.Equivalents
 import com.ddremlin.stitchpad.core.Floss
 import com.ddremlin.stitchpad.core.FlossCatalog
 import com.ddremlin.stitchpad.core.Knot
@@ -60,9 +62,24 @@ data class Floating(val clip: Clip, val x: Int, val y: Int, val fromMove: Boolea
 
 class EditorViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val dmcCatalog: FlossCatalog by lazy {
-        FlossCatalog.parseCsv(app.assets.open("dmc.csv").bufferedReader().use { it.readText() }, "DMC")
+    /** Встроенные палитры из assets. */
+    private val builtInCatalogs: List<FlossCatalog> by lazy {
+        listOf("dmc.csv" to "DMC", "anchor.csv" to "Anchor").mapNotNull { (file, brand) ->
+            runCatching { FlossCatalog.parseCsv(app.assets.open(file).bufferedReader().use { it.readText() }, brand) }.getOrNull()
+        }
     }
+    private val dmcCatalog: FlossCatalog get() = builtInCatalogs.first()
+
+    /** Таблицы соответствия ниток (DMC → Anchor по таблице artpatt.com). */
+    val conversionTables: List<ConversionTable> by lazy {
+        listOfNotNull(runCatching {
+            ConversionTable.parse(app.assets.open("dmc_anchor.csv").bufferedReader().use { it.readText() }, "DMC", "Anchor")
+        }.getOrNull())
+    }
+
+    /** Аналог нитки в другой палитре и признак «по таблице». */
+    fun equivalent(f: Floss, target: FlossCatalog): Pair<Floss, Boolean> = Equivalents.find(f, target, conversionTables)
+    val builtInBrands: Set<String> get() = builtInCatalogs.map { it.brand }.toSet()
 
     private val palettesDir: File get() = File(getApplication<Application>().filesDir, "palettes").apply { mkdirs() }
 
@@ -455,13 +472,21 @@ class EditorViewModel(app: Application) : AndroidViewModel(app) {
         message = "Удалено цветов: ${before - pattern.palette.size}"
     }
 
-    /** Перевести всю схему на нитки другой фирмы. */
+    /** Перевести всю схему на нитки другой фирмы (по таблице соответствия, где она есть, иначе по цвету). */
     fun convertPalette(brand: String) {
         val cat = catalogs.firstOrNull { it.brand == brand } ?: return
         val before = pattern.palette.size
-        replaceWithUndo(pattern.convertPalette(cat))
+        var byTable = 0
+        val converted = pattern.convertPalette(cat) { f ->
+            val (g, official) = equivalent(f, cat)
+            if (official) byTable++
+            g
+        }
+        replaceWithUndo(converted)
         activeBrand = brand
-        message = "Схема переведена на $brand: цветов $before → ${pattern.palette.size}"
+        val byColor = before - byTable
+        message = "Схема переведена на $brand: цветов $before → ${pattern.palette.size}" +
+            (if (byTable > 0) ", по таблице $byTable" else "") + (if (byColor > 0) ", по цвету $byColor" else "")
     }
 
     // ---------------- Палитры ниток ----------------
@@ -470,7 +495,7 @@ class EditorViewModel(app: Application) : AndroidViewModel(app) {
         val imported = palettesDir.listFiles { f -> f.extension == "csv" }?.sortedBy { it.name }?.mapNotNull { f ->
             runCatching { FlossCatalog.parseCsv(f.readText(), f.nameWithoutExtension) }.getOrNull()?.takeIf { it.flosses.isNotEmpty() }
         } ?: emptyList()
-        catalogs = listOf(dmcCatalog) + imported.filter { it.brand != "DMC" }
+        catalogs = builtInCatalogs + imported.filter { c -> builtInBrands.none { it.equals(c.brand, ignoreCase = true) } }
         if (catalogs.none { it.brand == activeBrand }) activeBrand = "DMC"
     }
 
@@ -484,11 +509,11 @@ class EditorViewModel(app: Application) : AndroidViewModel(app) {
     /** Импорт палитры из CSV: код;название;R;G;B (или через запятую). */
     fun importPalette(uri: Uri, brand: String) {
         val clean = brand.trim().replace(Regex("[\\\\/:*?\"<>|]"), "_").ifBlank { "Палитра" }
-        if (clean.equals("DMC", ignoreCase = true)) { message = "Название DMC занято встроенной палитрой"; return }
+        if (builtInBrands.any { it.equals(clean, ignoreCase = true) }) { message = "Название $clean занято встроенной палитрой"; return }
         runCatching {
             val text = getApplication<Application>().contentResolver.openInputStream(uri)!!.bufferedReader().use { it.readText() }
             val cat = FlossCatalog.parseCsv(text, clean)
-            require(cat.flosses.isNotEmpty()) { "в файле не найдено строк вида код;название;R;G;B" }
+            require(cat.flosses.isNotEmpty()) { "в файле не найдено цветов (нужны столбцы код, название и R, G, B или HEX)" }
             File(palettesDir, "$clean.csv").writeText(text)
             cat.flosses.size
         }.onSuccess { n ->
@@ -498,7 +523,7 @@ class EditorViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun deletePalette(brand: String) {
-        if (brand == "DMC") return
+        if (brand in builtInBrands) return
         File(palettesDir, "$brand.csv").delete()
         reloadCatalogs()
     }

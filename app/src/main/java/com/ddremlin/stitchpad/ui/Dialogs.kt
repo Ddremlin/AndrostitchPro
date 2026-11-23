@@ -295,7 +295,7 @@ fun FlossPickerDialog(
 
 @Composable
 fun ColorEntryDialog(
-    entry: PaletteEntry, summary: String, progress: IntArray?, equivalents: List<Floss>,
+    entry: PaletteEntry, summary: String, progress: IntArray?, equivalents: List<String>,
     onDismiss: () -> Unit, onReplace: () -> Unit, onDelete: () -> Unit,
 ) {
     AlertDialog(
@@ -313,7 +313,7 @@ fun ColorEntryDialog(
                         Text("Вышито: ${progress[0]} из ${progress[1]} (${progress[0] * 100 / progress[1]}%)", style = MaterialTheme.typography.bodySmall)
                     }
                     if (equivalents.isNotEmpty()) {
-                        Text("Похожие: " + equivalents.joinToString { it.label }, style = MaterialTheme.typography.bodySmall)
+                        Text("Аналоги: " + equivalents.joinToString(), style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
@@ -331,7 +331,7 @@ fun ColorEntryDialog(
 /** Палитры ниток: выбор фирмы, импорт CSV, перевод схемы на другую фирму. */
 @Composable
 fun PalettesDialog(
-    catalogs: List<FlossCatalog>, activeBrand: String,
+    catalogs: List<FlossCatalog>, activeBrand: String, builtIn: Set<String>,
     onDismiss: () -> Unit, onSelect: (String) -> Unit, onConvert: (String) -> Unit,
     onImport: () -> Unit, onDelete: (String) -> Unit,
 ) {
@@ -351,16 +351,16 @@ fun PalettesDialog(
                         RadioButton(selected = c.brand == activeBrand, onClick = { onSelect(c.brand) })
                         Column(Modifier.weight(1f)) {
                             Text(c.brand, fontWeight = FontWeight.Medium)
-                            Text("${c.flosses.size} цветов" + (if (c.brand == "DMC") " · встроенная" else ""), style = MaterialTheme.typography.bodySmall)
+                            Text("${c.flosses.size} цветов" + (if (c.brand in builtIn) " · встроенная" else ""), style = MaterialTheme.typography.bodySmall)
                         }
                         TextButton(onClick = { confirmConvert = c.brand }) { Text("Перевести") }
-                        if (c.brand != "DMC") IconButton(onClick = { onDelete(c.brand) }) { Icon(Icons.Default.Delete, "Удалить") }
+                        if (c.brand !in builtIn) IconButton(onClick = { onDelete(c.brand) }) { Icon(Icons.Default.Delete, "Удалить") }
                     }
                 }
                 Spacer(Modifier.size(8.dp))
                 Text(
-                    "Свою палитру (Anchor, Madeira, Gamma, Ariadna…) можно загрузить файлом CSV: в каждой строке " +
-                        "код;название;R;G;B, например 403;Black;0;0;0. Подойдёт таблица из Excel или Google Таблиц, сохранённая как CSV.",
+                    "Другую палитру (Madeira, Gamma, Ariadna…) можно загрузить файлом CSV: строки вида код;название;R;G;B " +
+                        "или таблица с заголовком и столбцами кода, названия и R, G, B (или HEX).",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -372,7 +372,7 @@ fun PalettesDialog(
         AlertDialog(
             onDismissRequest = { confirmConvert = null },
             title = { Text("Перевести схему на $brand?") },
-            text = { Text("Каждая нитка заменится на ближайшую по цвету из палитры $brand. Похожие цвета могут слиться в один. Отменить можно кнопкой ↶.") },
+            text = { Text("Нитки заменятся на аналоги $brand: по таблице соответствия, где она есть (DMC ↔ Anchor), иначе на ближайшие по цвету. Похожие цвета могут слиться в один. Отменить можно кнопкой ↶.") },
             confirmButton = { TextButton(onClick = { onConvert(brand); confirmConvert = null }) { Text("Перевести") } },
             dismissButton = { TextButton(onClick = { confirmConvert = null }) { Text("Отмена") } },
         )

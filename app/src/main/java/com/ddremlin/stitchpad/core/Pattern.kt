@@ -236,12 +236,15 @@ class Pattern(
         return remapped(np, remap)
     }
 
-    /** Перевести схему на нитки другой фирмы (ближайшие по цвету, совпадения сливаются). */
-    fun convertPalette(catalog: FlossCatalog): Pattern {
+    /**
+     * Перевести схему на нитки другой фирмы. pick возвращает аналог нитки
+     * (по таблице соответствия или ближайший по цвету). Совпадения сливаются в один цвет.
+     */
+    fun convertPalette(catalog: FlossCatalog, pick: (Floss) -> Floss = { catalog.nearest(it.rgb) }): Pattern {
         val np = mutableListOf<PaletteEntry>()
         val remap = IntArray(palette.size)
         for (i in palette.indices) {
-            val f = catalog.nearest(palette[i].floss.rgb)
+            val f = pick(palette[i].floss)
             val existing = np.indexOfFirst { it.floss.key == f.key }
             if (existing >= 0) remap[i] = existing
             else { remap[i] = np.size; np.add(PaletteEntry(f, palette[i].symbol)) }
