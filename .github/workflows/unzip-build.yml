@@ -33,5 +33,5 @@ jobs:
         run: chmod +x gradlew && ./gradlew assembleDebug
       - uses: actions/upload-artifact@v5
         with:
-          name: StitchPad-debug-apk
+          name: AndrostitchPro-debug-apk
           path: app/build/outputs/apk/debug/*.apk
