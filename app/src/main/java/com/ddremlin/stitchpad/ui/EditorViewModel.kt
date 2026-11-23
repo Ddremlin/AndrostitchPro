@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.media.ExifInterface
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -16,8 +17,11 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ddremlin.stitchpad.core.Backstitch
+import com.ddremlin.stitchpad.core.CellRect
+import com.ddremlin.stitchpad.core.Clip
 import com.ddremlin.stitchpad.core.Floss
 import com.ddremlin.stitchpad.core.FlossCatalog
+import com.ddremlin.stitchpad.core.Knot
 import com.ddremlin.stitchpad.core.Pattern
 import com.ddremlin.stitchpad.core.PatternIO
 import com.ddremlin.stitchpad.core.PhotoConverter
@@ -30,29 +34,48 @@ import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.roundToInt
 
-enum class Tool(val glyph: String, val label: String) {
+enum class Tool(val glyph: String, val label: String, val stitching: Boolean = false) {
     PAN("✋", "Рука"),
     FULL("✕", "Крест"),
-    HALF_FWD("╱", "Полу /"),
-    HALF_BACK("╲", "Полу \\"),
+    HALF_FWD("╱", "½ /"),
+    HALF_BACK("╲", "½ \\"),
+    QUARTER("◸", "¼"),
+    THREE_QUARTER("◩", "¾"),
     BACKSTITCH("⟋", "Бэкстич"),
+    KNOT("•", "Узелок"),
+    BEAD("◉", "Бисер"),
     ERASER("⌫", "Ластик"),
     FILL("▨", "Заливка"),
     PICKER("◎", "Пипетка"),
+    SELECT("⬚", "Выделить"),
+    // режим «вышиваю»
+    MARK("✓", "Отметить", true),
+    UNMARK("↺", "Снять", true),
 }
 
 enum class ViewMode(val label: String) { BOTH("Цвет+символ"), COLOR("Цвет"), SYMBOL("Символы") }
 
+/** Плавающий (вставляемый/перемещаемый) фрагмент и его положение в клетках. */
+data class Floating(val clip: Clip, val x: Int, val y: Int, val fromMove: Boolean)
+
 class EditorViewModel(app: Application) : AndroidViewModel(app) {
 
-    val catalog: FlossCatalog by lazy {
-        FlossCatalog.parseCsv(app.assets.open("dmc.csv").bufferedReader().use { it.readText() })
+    private val dmcCatalog: FlossCatalog by lazy {
+        FlossCatalog.parseCsv(app.assets.open("dmc.csv").bufferedReader().use { it.readText() }, "DMC")
     }
+
+    private val palettesDir: File get() = File(getApplication<Application>().filesDir, "palettes").apply { mkdirs() }
+
+    /** Все палитры: встроенная DMC + импортированные пользователем (.csv). */
+    var catalogs by mutableStateOf<List<FlossCatalog>>(emptyList()); private set
+    /** Фирма ниток для подбора цветов из фото и по умолчанию в выборе ниток. */
+    var activeBrand by mutableStateOf("DMC")
+    val activeCatalog: FlossCatalog get() = catalogs.firstOrNull { it.brand == activeBrand } ?: dmcCatalog
 
     var pattern by mutableStateOf(Pattern(60, 60)); private set
     /** Увеличивается при любом изменении клеток — холст перерисовывается. */
     var revision by mutableIntStateOf(0); private set
-    var tool by mutableStateOf(Tool.FULL)
+    var tool by mutableStateOf(Tool.FULL); private set
     var currentColor by mutableIntStateOf(-1)
     var viewMode by mutableStateOf(ViewMode.BOTH)
     var busy by mutableStateOf(false); private set
@@ -62,6 +85,15 @@ class EditorViewModel(app: Application) : AndroidViewModel(app) {
     var fitRequest by mutableIntStateOf(0); private set
     var undoCount by mutableIntStateOf(0); private set
     var redoCount by mutableIntStateOf(0); private set
+
+    /** Режим «вышиваю»: отметки готовых клеток, подсветка выбранного цвета. */
+    var stitchMode by mutableStateOf(false); private set
+    /** В режиме вышивания приглушать остальные цвета. */
+    var highlightColor by mutableStateOf(true)
+
+    var selection by mutableStateOf<CellRect?>(null); private set
+    var clipboard by mutableStateOf<Clip?>(null); private set
+    var floating by mutableStateOf<Floating?>(null); private set
 
     val appVersion: String = runCatching {
         app.packageManager.getPackageInfo(app.packageName, 0).versionName
@@ -74,6 +106,7 @@ class EditorViewModel(app: Application) : AndroidViewModel(app) {
     private val autosaveFile: File get() = File(getApplication<Application>().filesDir, "autosave.stp")
 
     init {
+        reloadCatalogs()
         runCatching {
             if (autosaveFile.exists()) {
                 val lines = autosaveFile.readText()
@@ -98,6 +131,7 @@ class EditorViewModel(app: Application) : AndroidViewModel(app) {
     private fun syncCounts() { undoCount = undoStack.size; redoCount = redoStack.size }
 
     fun undo() {
+        floating = null
         val prev = undoStack.removeLastOrNull() ?: return
         redoStack.addLast(pattern)
         setPattern(prev, keepFit = true)
@@ -105,6 +139,7 @@ class EditorViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun redo() {
+        floating = null
         val next = redoStack.removeLastOrNull() ?: return
         undoStack.addLast(pattern)
         setPattern(next, keepFit = true)
@@ -116,11 +151,32 @@ class EditorViewModel(app: Application) : AndroidViewModel(app) {
         pattern = p
         if (currentColor >= p.palette.size) currentColor = p.palette.lastIndex
         if (currentColor < 0 && p.palette.isNotEmpty()) currentColor = 0
+        if (sizeChanged) { selection = null; floating = null }
         revision++
         if (!keepFit || sizeChanged) fitRequest++
     }
 
     private fun replaceWithUndo(p: Pattern) { pushUndo(); setPattern(p, keepFit = true) }
+
+    // ---------------- Инструменты и режимы ----------------
+
+    fun selectTool(t: Tool) {
+        if (tool == Tool.SELECT && t != Tool.SELECT) { commitFloating(); selection = null }
+        tool = t
+    }
+
+    fun toggleStitchMode() {
+        commitFloating(); selection = null
+        stitchMode = !stitchMode
+        tool = if (stitchMode) Tool.MARK else Tool.FULL
+        message = if (stitchMode) "Режим «вышиваю»: проводите пальцем по вышитым клеткам" else "Режим редактирования"
+    }
+
+    fun resetProgress() {
+        pushUndo()
+        pattern.done.fill(false)
+        revision++
+    }
 
     // ---------------- Рисование ----------------
 
@@ -129,6 +185,11 @@ class EditorViewModel(app: Application) : AndroidViewModel(app) {
     private var strokeStartX = 0
     private var strokeStartY = 0
     private var strokeActive = false
+    private var strokeCorner = 0
+    private var selAnchorX = 0
+    private var selAnchorY = 0
+    private var grabDX = 0
+    private var grabDY = 0
 
     /** gx, gy — координаты в клетках (дробные). */
     fun beginStroke(gx: Float, gy: Float) {
@@ -157,10 +218,39 @@ class EditorViewModel(app: Application) : AndroidViewModel(app) {
                 strokeActive = true
                 return
             }
+            Tool.KNOT, Tool.BEAD -> {
+                if (!requireColor()) return
+                val hx = (gx * 2).roundToInt().coerceIn(0, pattern.width * 2)
+                val hy = (gy * 2).roundToInt().coerceIn(0, pattern.height * 2)
+                pushUndo()
+                pattern.knots.removeAll { it.hx == hx && it.hy == hy }
+                pattern.knots.add(Knot(hx, hy, currentColor, tool == Tool.BEAD))
+                revision++
+                return
+            }
+            Tool.SELECT -> {
+                val f = floating
+                if (f != null) {
+                    grabDX = cx - f.x; grabDY = cy - f.y
+                } else {
+                    selAnchorX = cx.coerceIn(0, pattern.width - 1); selAnchorY = cy.coerceIn(0, pattern.height - 1)
+                    selection = CellRect.of(selAnchorX, selAnchorY, selAnchorX, selAnchorY, pattern.width, pattern.height)
+                }
+                strokeActive = true
+                return
+            }
+            Tool.MARK, Tool.UNMARK -> {
+                pushUndo()
+                strokeActive = true
+                lastCellX = cx; lastCellY = cy
+                applyAt(cx, cy)
+                revision++
+            }
             else -> {
                 if (tool != Tool.ERASER && !requireColor()) return
                 pushUndo()
                 strokeActive = true
+                strokeCorner = StitchKind.cornerAt(gx - floor(gx), gy - floor(gy))
                 lastCellX = cx; lastCellY = cy
                 applyAt(cx, cy)
                 revision++
@@ -170,14 +260,32 @@ class EditorViewModel(app: Application) : AndroidViewModel(app) {
 
     fun moveStroke(gx: Float, gy: Float) {
         if (!strokeActive) return
-        if (tool == Tool.BACKSTITCH) {
-            val ex = gx.roundToInt().coerceIn(0, pattern.width)
-            val ey = gy.roundToInt().coerceIn(0, pattern.height)
-            backstitchPreview = Backstitch(strokeStartX, strokeStartY, ex, ey, currentColor)
+        val cx = floor(gx).toInt(); val cy = floor(gy).toInt()
+        when (tool) {
+            Tool.BACKSTITCH -> {
+                val ex = gx.roundToInt().coerceIn(0, pattern.width)
+                val ey = gy.roundToInt().coerceIn(0, pattern.height)
+                backstitchPreview = Backstitch(strokeStartX, strokeStartY, ex, ey, currentColor)
+                return
+            }
+            Tool.SELECT -> {
+                val f = floating
+                if (f != null) {
+                    val nx = cx - grabDX; val ny = cy - grabDY
+                    if (nx != f.x || ny != f.y) floating = f.copy(x = nx, y = ny)
+                } else {
+                    selection = CellRect.of(selAnchorX, selAnchorY, cx, cy, pattern.width, pattern.height)
+                }
+                return
+            }
+            else -> {}
+        }
+        strokeCorner = StitchKind.cornerAt(gx - floor(gx), gy - floor(gy))
+        if (cx == lastCellX && cy == lastCellY) {
+            // в той же клетке для ¼ и ¾ может смениться угол
+            if (tool == Tool.QUARTER || tool == Tool.THREE_QUARTER) { applyAt(cx, cy); revision++ }
             return
         }
-        val cx = floor(gx).toInt(); val cy = floor(gy).toInt()
-        if (cx == lastCellX && cy == lastCellY) return
         // линия Брезенхэма между точками, чтобы не было пропусков при быстром движении
         var x0 = lastCellX; var y0 = lastCellY
         val dx = abs(cx - x0); val dy = -abs(cy - y0)
@@ -212,7 +320,11 @@ class EditorViewModel(app: Application) : AndroidViewModel(app) {
     fun cancelStroke() {
         if (!strokeActive) return
         strokeActive = false
-        if (tool == Tool.BACKSTITCH) { backstitchPreview = null; return }
+        when (tool) {
+            Tool.BACKSTITCH -> { backstitchPreview = null; return }
+            Tool.SELECT -> return
+            else -> {}
+        }
         undoStack.removeLastOrNull()?.let { pattern = it; revision++ }
         syncCounts()
     }
@@ -221,17 +333,26 @@ class EditorViewModel(app: Application) : AndroidViewModel(app) {
         val p = pattern
         if (!p.inBounds(x, y)) return
         val i = p.index(x, y)
+        fun put(kind: Byte) {
+            if (p.cells[i] != currentColor || p.kinds[i] != kind) p.done[i] = false
+            p.cells[i] = currentColor; p.kinds[i] = kind
+        }
         when (tool) {
-            Tool.FULL -> { p.cells[i] = currentColor; p.kinds[i] = StitchKind.FULL }
-            Tool.HALF_FWD -> { p.cells[i] = currentColor; p.kinds[i] = StitchKind.HALF_FWD }
-            Tool.HALF_BACK -> { p.cells[i] = currentColor; p.kinds[i] = StitchKind.HALF_BACK }
+            Tool.FULL -> put(StitchKind.FULL)
+            Tool.HALF_FWD -> put(StitchKind.HALF_FWD)
+            Tool.HALF_BACK -> put(StitchKind.HALF_BACK)
+            Tool.QUARTER -> put(StitchKind.quarter(strokeCorner))
+            Tool.THREE_QUARTER -> put(StitchKind.threeQuarter(strokeCorner))
             Tool.ERASER -> {
-                p.cells[i] = -1; p.kinds[i] = StitchKind.FULL
+                p.cells[i] = -1; p.kinds[i] = StitchKind.FULL; p.done[i] = false
                 p.backstitches.removeAll { b ->
                     val mx = (b.x1 + b.x2) / 2f; val my = (b.y1 + b.y2) / 2f
                     floor(mx).toInt() == x && floor(my).toInt() == y
                 }
+                p.knots.removeAll { k -> k.hx in 2 * x..2 * x + 2 && k.hy in 2 * y..2 * y + 2 }
             }
+            Tool.MARK -> if (p.cells[i] >= 0) p.done[i] = true
+            Tool.UNMARK -> p.done[i] = false
             else -> {}
         }
     }
@@ -240,6 +361,70 @@ class EditorViewModel(app: Application) : AndroidViewModel(app) {
         if (currentColor in pattern.palette.indices) return true
         message = "Сначала добавьте цвет в палитру (кнопка +)"
         return false
+    }
+
+    // ---------------- Выделение, копирование, вставка ----------------
+
+    fun selectAll() {
+        commitFloating()
+        selection = CellRect(0, 0, pattern.width, pattern.height)
+    }
+
+    fun clearSelection() { selection = null }
+
+    fun copySelection() {
+        val r = selection ?: return
+        clipboard = pattern.extract(r)
+        message = "Скопировано ${r.width}×${r.height}"
+    }
+
+    fun cutSelection() {
+        val r = selection ?: return
+        clipboard = pattern.extract(r)
+        pushUndo(); pattern.clear(r); revision++
+        message = "Вырезано ${r.width}×${r.height}"
+    }
+
+    fun deleteSelection() {
+        val r = selection ?: return
+        pushUndo(); pattern.clear(r); revision++
+    }
+
+    /** Поднять выделенный фрагмент, чтобы перетащить его пальцем. */
+    fun moveSelection() {
+        val r = selection ?: return
+        val clip = pattern.extract(r)
+        pushUndo(); pattern.clear(r); revision++
+        floating = Floating(clip, r.x0, r.y0, fromMove = true)
+        selection = null
+    }
+
+    fun paste() {
+        val clip = clipboard ?: return
+        commitFloating()
+        val r = selection
+        val x = r?.x0 ?: ((pattern.width - clip.width) / 2).coerceAtLeast(0)
+        val y = r?.y0 ?: ((pattern.height - clip.height) / 2).coerceAtLeast(0)
+        floating = Floating(clip, x, y, fromMove = false)
+        selection = null
+        tool = Tool.SELECT
+        message = "Перетащите фрагмент пальцем и нажмите «Готово»"
+    }
+
+    fun commitFloating() {
+        val f = floating ?: return
+        if (!f.fromMove) pushUndo()
+        pattern.stamp(f.clip, f.x, f.y)
+        floating = null
+        selection = CellRect.of(f.x, f.y, f.x + f.clip.width - 1, f.y + f.clip.height - 1, pattern.width, pattern.height)
+            .takeIf { f.x < pattern.width && f.y < pattern.height && f.x + f.clip.width > 0 && f.y + f.clip.height > 0 }
+        revision++
+    }
+
+    fun cancelFloating() {
+        val f = floating ?: return
+        floating = null
+        if (f.fromMove) undo() // вернуть фрагмент на место
     }
 
     // ---------------- Палитра ----------------
@@ -253,7 +438,7 @@ class EditorViewModel(app: Application) : AndroidViewModel(app) {
 
     fun replaceFloss(index: Int, f: Floss) {
         if (index !in pattern.palette.indices) return
-        if (pattern.palette.any { it.floss.code == f.code }) { message = "Эта нитка уже есть в палитре"; return }
+        if (pattern.palette.any { it.floss.key == f.key }) { message = "Эта нитка уже есть в палитре"; return }
         pushUndo()
         pattern.palette[index] = pattern.palette[index].copy(floss = f)
         revision++
@@ -268,6 +453,54 @@ class EditorViewModel(app: Application) : AndroidViewModel(app) {
         val before = pattern.palette.size
         replaceWithUndo(pattern.removeUnusedColors())
         message = "Удалено цветов: ${before - pattern.palette.size}"
+    }
+
+    /** Перевести всю схему на нитки другой фирмы. */
+    fun convertPalette(brand: String) {
+        val cat = catalogs.firstOrNull { it.brand == brand } ?: return
+        val before = pattern.palette.size
+        replaceWithUndo(pattern.convertPalette(cat))
+        activeBrand = brand
+        message = "Схема переведена на $brand: цветов $before → ${pattern.palette.size}"
+    }
+
+    // ---------------- Палитры ниток ----------------
+
+    private fun reloadCatalogs() {
+        val imported = palettesDir.listFiles { f -> f.extension == "csv" }?.sortedBy { it.name }?.mapNotNull { f ->
+            runCatching { FlossCatalog.parseCsv(f.readText(), f.nameWithoutExtension) }.getOrNull()?.takeIf { it.flosses.isNotEmpty() }
+        } ?: emptyList()
+        catalogs = listOf(dmcCatalog) + imported.filter { it.brand != "DMC" }
+        if (catalogs.none { it.brand == activeBrand }) activeBrand = "DMC"
+    }
+
+    /** Имя файла по Uri (для названия фирмы при импорте палитры). */
+    fun displayName(uri: Uri): String? = runCatching {
+        getApplication<Application>().contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+            if (c.moveToFirst()) c.getString(0) else null
+        }
+    }.getOrNull()
+
+    /** Импорт палитры из CSV: код;название;R;G;B (или через запятую). */
+    fun importPalette(uri: Uri, brand: String) {
+        val clean = brand.trim().replace(Regex("[\\\\/:*?\"<>|]"), "_").ifBlank { "Палитра" }
+        if (clean.equals("DMC", ignoreCase = true)) { message = "Название DMC занято встроенной палитрой"; return }
+        runCatching {
+            val text = getApplication<Application>().contentResolver.openInputStream(uri)!!.bufferedReader().use { it.readText() }
+            val cat = FlossCatalog.parseCsv(text, clean)
+            require(cat.flosses.isNotEmpty()) { "в файле не найдено строк вида код;название;R;G;B" }
+            File(palettesDir, "$clean.csv").writeText(text)
+            cat.flosses.size
+        }.onSuccess { n ->
+            reloadCatalogs()
+            message = "Палитра $clean: $n цветов"
+        }.onFailure { message = "Не удалось импортировать палитру: ${it.message}" }
+    }
+
+    fun deletePalette(brand: String) {
+        if (brand == "DMC") return
+        File(palettesDir, "$brand.csv").delete()
+        reloadCatalogs()
     }
 
     // ---------------- Операции над схемой ----------------
@@ -285,14 +518,13 @@ class EditorViewModel(app: Application) : AndroidViewModel(app) {
     fun resize(w: Int, h: Int) = replaceWithUndo(pattern.resizeCanvas(w, h))
     fun requestFit() { fitRequest++ }
 
-    fun rename(title: String) { pattern.title = title; revision++ }
-
     // ---------------- Файлы ----------------
 
     fun listSaved(): List<File> =
         patternsDir.listFiles { f -> f.extension == "stp" }?.sortedByDescending { it.lastModified() } ?: emptyList()
 
     fun save(name: String) {
+        commitFloating()
         val clean = name.trim().replace(Regex("[\\\\/:*?\"<>|]"), "_").ifBlank { "Схема" }
         pattern.title = clean
         runCatching { File(patternsDir, "$clean.stp").writeText(PatternIO.write(pattern)) }
@@ -320,19 +552,20 @@ class EditorViewModel(app: Application) : AndroidViewModel(app) {
             .onFailure { message = "Не удалось открыть файл: ${it.message}" }
     }
 
-    fun exportStp(uri: Uri) = writeToUri(uri) { out -> out.write(PatternIO.write(pattern).toByteArray()) }
+    fun exportStp(uri: Uri) = writeToUri(uri) { p, out -> out.write(PatternIO.write(p).toByteArray()) }
 
-    fun exportPng(uri: Uri) = writeToUri(uri) { out -> Exporter.writePng(pattern, out) }
+    fun exportPng(uri: Uri) = writeToUri(uri) { p, out -> Exporter.writePng(p, out) }
 
-    fun exportPdf(uri: Uri) = writeToUri(uri) { out -> Exporter.writePdf(pattern, out) }
+    fun exportPdf(uri: Uri) = writeToUri(uri) { p, out -> Exporter.writePdf(p, out) }
 
-    private fun writeToUri(uri: Uri, block: (java.io.OutputStream) -> Unit) {
+    private fun writeToUri(uri: Uri, block: (Pattern, java.io.OutputStream) -> Unit) {
+        commitFloating()
         val snapshot = pattern.copy()
         busy = true
         viewModelScope.launch {
             val res = withContext(Dispatchers.IO) {
                 runCatching {
-                    getApplication<Application>().contentResolver.openOutputStream(uri)!!.use { block(it) }
+                    getApplication<Application>().contentResolver.openOutputStream(uri)!!.use { block(snapshot, it) }
                 }
             }
             busy = false
@@ -401,7 +634,7 @@ class EditorViewModel(app: Application) : AndroidViewModel(app) {
                     val pixels = IntArray(w * h)
                     bmp.getPixels(pixels, 0, w, 0, 0, w, h)
                     bmp.recycle()
-                    PhotoConverter.convert(pixels, w, h, catalog, opt)
+                    PhotoConverter.convert(pixels, w, h, activeCatalog, opt)
                 }
             }
             busy = false

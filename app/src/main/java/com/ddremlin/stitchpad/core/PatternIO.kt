@@ -10,6 +10,9 @@ package com.ddremlin.stitchpad.core
  * cells -1*120 0*5 1 ...      (RLE: значение*повторы)
  * kinds 0*4800
  * bs 0 0 3 3 1
+ * knot 4 6 2 0                (полуклетки x, y, цвет, бусина 0/1)
+ * done 0*100 1*20 ...          (вышитые клетки)
+ * В строке color пятым полем идёт фирма ниток (DMC, Anchor, ...).
  */
 object PatternIO {
     private const val MAGIC = "STITCHPAD"
@@ -20,7 +23,7 @@ object PatternIO {
         append("size ").append(p.width).append(' ').append(p.height).append('\n')
         for (e in p.palette) {
             append("color ").append(e.floss.code).append('|').append(e.floss.name).append('|')
-                .append(String.format("%06X", e.floss.rgb)).append('|').append(e.symbol).append('\n')
+                .append(String.format("%06X", e.floss.rgb)).append('|').append(e.symbol).append('|').append(e.floss.brand).append('\n')
         }
         append("cells ").append(rle(p.cells)).append('\n')
         append("kinds ").append(rle(IntArray(p.kinds.size) { p.kinds[it].toInt() })).append('\n')
@@ -28,6 +31,11 @@ object PatternIO {
             append("bs ").append(b.x1).append(' ').append(b.y1).append(' ')
                 .append(b.x2).append(' ').append(b.y2).append(' ').append(b.color).append('\n')
         }
+        for (k in p.knots) {
+            append("knot ").append(k.hx).append(' ').append(k.hy).append(' ').append(k.color).append(' ')
+                .append(if (k.bead) 1 else 0).append('\n')
+        }
+        if (p.done.any { it }) append("done ").append(rle(IntArray(p.done.size) { if (p.done[it]) 1 else 0 })).append('\n')
     }
 
     fun read(text: String): Pattern {
@@ -39,6 +47,8 @@ object PatternIO {
         var cells: IntArray? = null
         var kinds: IntArray? = null
         val bs = mutableListOf<Backstitch>()
+        val knots = mutableListOf<Knot>()
+        var done: IntArray? = null
         for (line in lines.drop(1)) {
             val sp = line.indexOf(' ')
             if (sp < 0) continue
@@ -48,7 +58,10 @@ object PatternIO {
                 "size" -> { val p = rest.trim().split(' '); w = p[0].toInt(); h = p[1].toInt() }
                 "color" -> {
                     val p = rest.split('|')
-                    if (p.size >= 4) palette.add(PaletteEntry(Floss(p[0], p[1], p[2].toInt(16)), p[3].firstOrNull() ?: '?'))
+                    if (p.size >= 4) {
+                        val brand = p.getOrNull(4)?.ifBlank { null } ?: "DMC"
+                        palette.add(PaletteEntry(Floss(p[0], p[1], p[2].toInt(16), brand), p[3].firstOrNull() ?: '?'))
+                    }
                 }
                 "cells" -> cells = unrle(rest)
                 "kinds" -> kinds = unrle(rest)
@@ -56,6 +69,11 @@ object PatternIO {
                     val p = rest.trim().split(' ').map { it.toInt() }
                     if (p.size == 5) bs.add(Backstitch(p[0], p[1], p[2], p[3], p[4]))
                 }
+                "knot" -> {
+                    val p = rest.trim().split(' ').map { it.toInt() }
+                    if (p.size == 4) knots.add(Knot(p[0], p[1], p[2], p[3] == 1))
+                }
+                "done" -> done = unrle(rest)
             }
         }
         val n = w * h
@@ -65,7 +83,12 @@ object PatternIO {
         // защита от битых индексов
         for (i in c.indices) if (c[i] >= palette.size) c[i] = -1
         val validBs = bs.filter { it.color in palette.indices }.toMutableList()
-        return Pattern(w, h, palette, c, ByteArray(n) { k[it].toByte() }, validBs, title)
+        val validKnots = knots.filter { it.color in palette.indices }.toMutableList()
+        val d = done?.takeIf { it.size == n }
+        return Pattern(
+            w, h, palette, c, ByteArray(n) { k[it].toByte() }, validBs, title, validKnots,
+            BooleanArray(n) { d != null && d[it] == 1 && c[it] >= 0 },
+        )
     }
 
     private fun rle(a: IntArray): String {

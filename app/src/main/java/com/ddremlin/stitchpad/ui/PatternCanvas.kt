@@ -22,6 +22,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -32,6 +33,7 @@ import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import com.ddremlin.stitchpad.core.Clip
 import com.ddremlin.stitchpad.core.ColorMath
 import com.ddremlin.stitchpad.core.Pattern
 import com.ddremlin.stitchpad.core.StitchKind
@@ -45,8 +47,10 @@ private val Fabric = Color(0xFFFDFBF6)
 private val Outside = Color(0xFFDAD6CC)
 private val GridThin = Color(0x33000000)
 private val GridBold = Color(0x99000000)
+private val DoneOverlay = Color(0xB0808080)
+private val SelectionColor = Color(0xFF1E88E5)
 
-/** Масштаб, начиная с которого клетки рисуются по одной (с символами и полукрестами). */
+/** Масштаб, начиная с которого клетки рисуются по одной (с символами и частичными стежками). */
 private const val DETAIL_SCALE = 10f
 private const val SYMBOL_SCALE = 14f
 
@@ -67,7 +71,8 @@ fun PatternCanvas(vm: EditorViewModel, modifier: Modifier = Modifier) {
         }
     }
 
-    val image: ImageBitmap = remember(p, rev) { buildOverview(p) }
+    val highlight = if (vm.stitchMode && vm.highlightColor) vm.currentColor else -1
+    val image: ImageBitmap = remember(p, rev, vm.stitchMode, highlight) { buildOverview(p, vm.stitchMode, highlight) }
     val symbolPaint = remember { Paint().apply { isAntiAlias = true; textAlign = Paint.Align.CENTER } }
 
     Canvas(
@@ -116,7 +121,6 @@ fun PatternCanvas(vm: EditorViewModel, modifier: Modifier = Modifier) {
                 }
             }
     ) {
-        // читаем rev, чтобы холст перерисовывался при изменении клеток
         if (rev < 0) return@Canvas
         drawRect(Outside)
         val pw = p.width * scale
@@ -138,21 +142,38 @@ fun PatternCanvas(vm: EditorViewModel, modifier: Modifier = Modifier) {
                 filterQuality = FilterQuality.None,
             )
         } else {
-            drawCells(p, vm.viewMode, x0, x1, y0, y1, scale, offset, symbolPaint)
+            drawCells(p, vm.viewMode, x0, x1, y0, y1, scale, offset, symbolPaint, vm.stitchMode, highlight)
         }
 
-        if (scale >= 5f) drawGrid(p, x0, x1, y0, y1, scale, offset)
+        if (scale >= 5f) drawGrid(x0, x1, y0, y1, scale, offset)
 
         // бэкстич
         val bsWidth = max(2f, scale * 0.16f)
         for (b in p.backstitches) {
             if (b.color !in p.palette.indices) continue
+            val faded = highlight >= 0 && b.color != highlight
             drawLine(
-                Color(p.palette[b.color].floss.argb),
+                Color(p.palette[b.color].floss.argb).copy(alpha = if (faded) 0.25f else 1f),
                 Offset(offset.x + b.x1 * scale, offset.y + b.y1 * scale),
                 Offset(offset.x + b.x2 * scale, offset.y + b.y2 * scale),
                 strokeWidth = bsWidth, cap = StrokeCap.Round,
             )
+        }
+        // узелки и бисер
+        val knotR = max(2.5f, scale * 0.22f)
+        for (k in p.knots) {
+            if (k.color !in p.palette.indices) continue
+            val faded = highlight >= 0 && k.color != highlight
+            val c = Color(p.palette[k.color].floss.argb).copy(alpha = if (faded) 0.25f else 1f)
+            val center = Offset(offset.x + k.hx * scale / 2f, offset.y + k.hy * scale / 2f)
+            if (k.bead) {
+                drawCircle(c, radius = knotR * 1.15f, center = center)
+                drawCircle(Color.White.copy(alpha = 0.8f), radius = knotR * 0.4f, center = center)
+                drawCircle(Color.Black.copy(alpha = 0.6f), radius = knotR * 1.15f, center = center, style = Stroke(1.5f))
+            } else {
+                drawCircle(c, radius = knotR, center = center)
+                drawCircle(Color.Black.copy(alpha = 0.7f), radius = knotR, center = center, style = Stroke(1.5f))
+            }
         }
         vm.backstitchPreview?.let { b ->
             val col = if (b.color in p.palette.indices) Color(p.palette[b.color].floss.argb) else Color.Red
@@ -164,17 +185,37 @@ fun PatternCanvas(vm: EditorViewModel, modifier: Modifier = Modifier) {
         }
 
         drawRect(Color.Black, topLeft = offset, size = Size(pw, ph), style = Stroke(width = 2f))
+
+        // выделение
+        vm.selection?.let { r ->
+            val tl = Offset(offset.x + r.x0 * scale, offset.y + r.y0 * scale)
+            val sz = Size(r.width * scale, r.height * scale)
+            drawRect(SelectionColor.copy(alpha = 0.12f), tl, sz)
+            drawRect(SelectionColor, tl, sz, style = Stroke(width = 3f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 10f))))
+        }
+        // плавающий фрагмент
+        vm.floating?.let { f -> drawFloating(f.clip, f.x, f.y, scale, offset) }
+    }
+}
+
+private fun DrawScope.drawStitch(kind: Byte, color: Color, l: Float, t: Float, scale: Float) {
+    if (kind == StitchKind.FULL) {
+        drawRect(color, Offset(l, t), Size(scale, scale))
+        return
+    }
+    val w = scale * 0.3f
+    for (s in StitchKind.segments(kind)) {
+        drawLine(color, Offset(l + s[0] * scale, t + s[1] * scale), Offset(l + s[2] * scale, t + s[3] * scale), w, StrokeCap.Round)
     }
 }
 
 private fun DrawScope.drawCells(
     p: Pattern, mode: ViewMode, x0: Int, x1: Int, y0: Int, y1: Int,
-    scale: Float, offset: Offset, paint: Paint,
+    scale: Float, offset: Offset, paint: Paint, stitchMode: Boolean, highlight: Int,
 ) {
     val showSymbols = mode != ViewMode.COLOR && scale >= SYMBOL_SCALE
     val showColor = mode != ViewMode.SYMBOL || scale < SYMBOL_SCALE
     val canvas = drawContext.canvas.nativeCanvas
-    val halfWidth = scale * 0.32f
     for (y in y0 until y1) {
         for (x in x0 until x1) {
             val i = p.index(x, y)
@@ -184,31 +225,62 @@ private fun DrawScope.drawCells(
             val l = offset.x + x * scale
             val t = offset.y + y * scale
             val kind = p.kinds[i]
-            val color = Color(entry.floss.argb)
+            val faded = highlight >= 0 && ci != highlight
+            val alpha = if (faded) 0.2f else 1f
+            val color = Color(entry.floss.argb).copy(alpha = alpha)
             if (showColor) {
-                when (kind) {
-                    StitchKind.FULL -> drawRect(color, Offset(l, t), Size(scale, scale))
-                    StitchKind.HALF_FWD -> drawLine(color, Offset(l + 1, t + scale - 1), Offset(l + scale - 1, t + 1), halfWidth, StrokeCap.Round)
-                    else -> drawLine(color, Offset(l + 1, t + 1), Offset(l + scale - 1, t + scale - 1), halfWidth, StrokeCap.Round)
-                }
+                drawStitch(kind, color, l, t, scale)
             } else if (kind != StitchKind.FULL) {
-                val light = color.copy(alpha = 0.35f)
-                if (kind == StitchKind.HALF_FWD) drawLine(light, Offset(l, t + scale), Offset(l + scale, t), halfWidth)
-                else drawLine(light, Offset(l, t), Offset(l + scale, t + scale), halfWidth)
+                drawStitch(kind, color.copy(alpha = 0.35f * alpha), l, t, scale)
             }
-            if (showSymbols) {
+            val isDone = stitchMode && p.done[i]
+            if (showSymbols && !isDone) {
                 val onColor = showColor && kind == StitchKind.FULL
-                paint.color = if (onColor) (0xFF shl 24) or ColorMath.contrastOn(entry.floss.rgb) else android.graphics.Color.BLACK
-                paint.textSize = if (kind == StitchKind.FULL) scale * 0.7f else scale * 0.45f
+                val base = if (onColor) ColorMath.contrastOn(entry.floss.rgb) else 0x000000
+                paint.color = ((255 * alpha).toInt() shl 24) or base
+                paint.textSize = if (kind == StitchKind.FULL) scale * 0.7f else scale * 0.42f
                 val cx = l + scale / 2
                 val cy = t + scale / 2 - (paint.ascent() + paint.descent()) / 2
                 canvas.drawText(entry.symbol.toString(), cx, cy, paint)
+            }
+            if (isDone) {
+                drawRect(DoneOverlay, Offset(l, t), Size(scale, scale))
+                drawLine(Color.White, Offset(l + scale * 0.22f, t + scale * 0.52f), Offset(l + scale * 0.42f, t + scale * 0.72f), scale * 0.1f, StrokeCap.Round)
+                drawLine(Color.White, Offset(l + scale * 0.42f, t + scale * 0.72f), Offset(l + scale * 0.78f, t + scale * 0.3f), scale * 0.1f, StrokeCap.Round)
             }
         }
     }
 }
 
-private fun DrawScope.drawGrid(p: Pattern, x0: Int, x1: Int, y0: Int, y1: Int, scale: Float, offset: Offset) {
+private fun DrawScope.drawFloating(clip: Clip, fx: Int, fy: Int, scale: Float, offset: Offset) {
+    for (y in 0 until clip.height) for (x in 0 until clip.width) {
+        val c = clip.cells[y * clip.width + x]
+        if (c < 0) continue
+        val l = offset.x + (fx + x) * scale
+        val t = offset.y + (fy + y) * scale
+        drawStitch(clip.kinds[y * clip.width + x], Color(clip.flosses[c].argb).copy(alpha = 0.85f), l, t, scale)
+    }
+    val bw = max(2f, scale * 0.16f)
+    for (b in clip.backstitches) {
+        drawLine(
+            Color(clip.flosses[b.color].argb),
+            Offset(offset.x + (fx + b.x1) * scale, offset.y + (fy + b.y1) * scale),
+            Offset(offset.x + (fx + b.x2) * scale, offset.y + (fy + b.y2) * scale),
+            bw, StrokeCap.Round,
+        )
+    }
+    for (k in clip.knots) {
+        drawCircle(
+            Color(clip.flosses[k.color].argb), radius = max(2.5f, scale * 0.22f),
+            center = Offset(offset.x + (2 * fx + k.hx) * scale / 2f, offset.y + (2 * fy + k.hy) * scale / 2f),
+        )
+    }
+    val tl = Offset(offset.x + fx * scale, offset.y + fy * scale)
+    val sz = Size(clip.width * scale, clip.height * scale)
+    drawRect(Color(0xFFE53935), tl, sz, style = Stroke(width = 3f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 10f))))
+}
+
+private fun DrawScope.drawGrid(x0: Int, x1: Int, y0: Int, y1: Int, scale: Float, offset: Offset) {
     val top = offset.y + y0 * scale
     val bottom = offset.y + y1 * scale
     val left = offset.x + x0 * scale
@@ -229,13 +301,16 @@ private fun DrawScope.drawGrid(p: Pattern, x0: Int, x1: Int, y0: Int, y1: Int, s
 }
 
 /** Картинка «пиксель = клетка» для быстрого показа при мелком масштабе. */
-private fun buildOverview(p: Pattern): ImageBitmap {
+private fun buildOverview(p: Pattern, stitchMode: Boolean, highlight: Int): ImageBitmap {
     val px = IntArray(p.width * p.height)
     for (i in px.indices) {
         val ci = p.cells[i]
         if (ci < 0) { px[i] = 0; continue }
-        val rgb = p.palette[ci].floss.rgb
-        px[i] = if (p.kinds[i] == StitchKind.FULL) (0xFF shl 24) or rgb else (0x80 shl 24) or rgb
+        var rgb = p.palette[ci].floss.rgb
+        var a = if (p.kinds[i] == StitchKind.FULL) 0xFF else 0x90
+        if (highlight >= 0 && ci != highlight) a = 0x30
+        if (stitchMode && p.done[i]) { rgb = 0x808080; a = 0xFF }
+        px[i] = (a shl 24) or rgb
     }
     val bmp = Bitmap.createBitmap(p.width, p.height, Bitmap.Config.ARGB_8888)
     bmp.setPixels(px, 0, p.width, 0, 0, p.width, p.height)

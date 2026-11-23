@@ -39,7 +39,7 @@ object ColorMath {
 }
 
 /** Каталог ниток с поиском ближайшего цвета. */
-class FlossCatalog(val flosses: List<Floss>) {
+class FlossCatalog(val brand: String, val flosses: List<Floss>) {
     private val labs: Array<Lab> = Array(flosses.size) { ColorMath.rgbToLab(flosses[it].rgb) }
 
     fun nearest(rgb: Int, exclude: Set<String> = emptySet()): Floss {
@@ -61,16 +61,17 @@ class FlossCatalog(val flosses: List<Floss>) {
 
     companion object {
         /** Формат строки: код;название;R;G;B */
-        fun parseCsv(text: String): FlossCatalog {
+        fun parseCsv(text: String, brand: String = "DMC"): FlossCatalog {
             val list = text.lineSequence().mapNotNull { line ->
-                val p = line.trim().split(';')
+                // разделитель ; или , (CSV из Excel/Google Таблиц)
+                val p = line.trim().split(if (line.contains(';')) ';' else ',').map { it.trim().trim('"') }
                 if (p.size < 5) null else {
                     val r = p[2].toIntOrNull(); val g = p[3].toIntOrNull(); val b = p[4].toIntOrNull()
-                    if (r == null || g == null || b == null) null
-                    else Floss(p[0], p[1], (r shl 16) or (g shl 8) or b)
+                    if (r == null || g == null || b == null || r !in 0..255 || g !in 0..255 || b !in 0..255) null
+                    else Floss(p[0].trim(), p[1].trim(), (r shl 16) or (g shl 8) or b, brand)
                 }
             }.toList()
-            return FlossCatalog(list)
+            return FlossCatalog(brand, list.distinctBy { it.code })
         }
     }
 }

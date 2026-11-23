@@ -130,8 +130,9 @@ object Exporter {
                 fill.color = argb; c.drawRect(rect, fill)
             } else {
                 half.color = argb
-                if (kind == StitchKind.HALF_FWD) c.drawLine(l, t + cell, l + cell, t, half)
-                else c.drawLine(l, t, l + cell, t + cell, half)
+                for (sg in StitchKind.segments(kind)) {
+                    c.drawLine(l + sg[0] * cell, t + sg[1] * cell, l + sg[2] * cell, t + sg[3] * cell, half)
+                }
             }
             if (symbols && cell >= 6f) {
                 sym.color = if (colored) (0xFF shl 24) or ColorMath.contrastOn(rgb) else Color.BLACK
@@ -169,6 +170,24 @@ object Exporter {
             }
             c.restore()
         }
+        // узелки и бисер
+        if (p.knots.isNotEmpty()) {
+            c.save()
+            c.clipRect(ox - cell, oy - cell, ox + w + cell, oy + h + cell)
+            val kp = Paint().apply { isAntiAlias = true }
+            val ring = Paint().apply { isAntiAlias = true; style = Paint.Style.STROKE; strokeWidth = max(0.6f, cell * 0.06f); color = Color.BLACK }
+            for (k in p.knots) {
+                if (k.color !in p.palette.indices) continue
+                if (k.hx < 2 * x0 || k.hx > 2 * x1 || k.hy < 2 * y0 || k.hy > 2 * y1) continue
+                kp.color = (0xFF shl 24) or p.palette[k.color].floss.rgb
+                val cx = ox + (k.hx / 2f - x0) * cell; val cy = oy + (k.hy / 2f - y0) * cell
+                val r = if (k.bead) cell * 0.3f else cell * 0.24f
+                c.drawCircle(cx, cy, r, kp)
+                c.drawCircle(cx, cy, r, ring)
+                if (k.bead) { kp.color = Color.WHITE; c.drawCircle(cx, cy, r * 0.35f, kp) }
+            }
+            c.restore()
+        }
     }
 
     private fun drawLegend(c: Canvas, p: Pattern, ox: Float, oy: Float, rowH: Float, width: Float) {
@@ -185,10 +204,8 @@ object Exporter {
             c.drawRect(ox, y, ox + rowH, y + rowH * 0.85f, fill)
             sym.color = (0xFF shl 24) or ColorMath.contrastOn(rgb)
             c.drawText(row.entry.symbol.toString(), ox + rowH / 2, y + rowH * 0.62f, sym)
-            val line = String.format(
-                Locale.US, "DMC %-6s %-32s крестов: %d  полукрестов: %d  мотков: %d",
-                row.entry.floss.code, row.entry.floss.name, row.full, row.half, row.skeinsToBuy,
-            )
+            val line = "${row.entry.floss.label}  ${row.entry.floss.name} — ${row.summary()}" +
+                if (row.skeinsToBuy > 0) ", мотков: ${row.skeinsToBuy}" else ""
             c.drawText(line, ox + rowH * 1.4f, y + rowH * 0.62f, text)
             y += rowH
         }
@@ -197,11 +214,10 @@ object Exporter {
     private fun drawLegendHeader(c: Canvas, x: Float, y: Float) {
         val b = Paint().apply { textSize = 9f; typeface = Typeface.DEFAULT_BOLD; isAntiAlias = true }
         c.drawText("Симв.", x, y, b)
-        c.drawText("DMC", x + 50, y, b)
-        c.drawText("Название", x + 95, y, b)
-        c.drawText("Кресты", x + 300, y, b)
-        c.drawText("Полукр.", x + 355, y, b)
-        c.drawText("Мотков (Aida 14, 2 сл.)", x + 410, y, b)
+        c.drawText("Нитка", x + 40, y, b)
+        c.drawText("Название", x + 110, y, b)
+        c.drawText("Стежки", x + 260, y, b)
+        c.drawText("Мотков (Aida 14, 2 сл.)", x + 430, y, b)
     }
 
     private fun drawLegendRow(c: Canvas, row: FlossUsage.Row, x: Float, y: Float, h: Float) {
@@ -213,11 +229,10 @@ object Exporter {
             color = (0xFF shl 24) or ColorMath.contrastOn(row.entry.floss.rgb)
         }
         c.drawText(row.entry.symbol.toString(), x + (h - 2) / 2, y - 1, s)
-        c.drawText(row.entry.symbol.toString(), x + 28, y, t)
-        c.drawText(row.entry.floss.code, x + 50, y, t)
-        c.drawText(row.entry.floss.name, x + 95, y, t)
-        c.drawText(row.full.toString(), x + 300, y, t)
-        c.drawText(row.half.toString(), x + 355, y, t)
-        c.drawText(String.format(Locale.US, "%.2f → %d", row.skeins, row.skeinsToBuy), x + 410, y, t)
+        c.drawText(row.entry.symbol.toString(), x + 24, y, t)
+        c.drawText(row.entry.floss.label, x + 40, y, t)
+        c.drawText(row.entry.floss.name.take(28), x + 110, y, t)
+        c.drawText(row.summary().take(48), x + 260, y, t)
+        if (row.skeinsToBuy > 0) c.drawText(String.format(Locale.US, "%.2f → %d", row.skeins, row.skeinsToBuy), x + 430, y, t)
     }
 }

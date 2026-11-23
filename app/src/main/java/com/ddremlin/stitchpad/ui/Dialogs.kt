@@ -3,6 +3,7 @@ package com.ddremlin.stitchpad.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +26,8 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -237,25 +240,35 @@ fun PhotoImportDialog(
 
 @Composable
 fun FlossPickerDialog(
-    catalog: FlossCatalog, title: String, used: Set<String>,
+    catalogs: List<FlossCatalog>, initialBrand: String, title: String, used: Set<String>,
     onDismiss: () -> Unit, onPick: (Floss) -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
-    val results = remember(query) { catalog.search(query) }
+    var brand by remember { mutableStateOf(initialBrand) }
+    val catalog = catalogs.firstOrNull { it.brand == brand } ?: catalogs.first()
+    val results = remember(query, catalog) { catalog.search(query) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
             Column {
+                if (catalogs.size > 1) {
+                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        catalogs.forEach { c ->
+                            FilterChip(selected = c.brand == catalog.brand, onClick = { brand = c.brand }, label = { Text(c.brand) })
+                        }
+                    }
+                    Spacer(Modifier.size(4.dp))
+                }
                 OutlinedTextField(
                     query, { query = it }, singleLine = true,
                     leadingIcon = { Icon(Icons.Default.Search, null) },
-                    placeholder = { Text("Номер DMC или название (англ.)") },
+                    placeholder = { Text("Номер ${catalog.brand} или название") },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.size(8.dp))
                 LazyColumn(Modifier.heightIn(max = 400.dp)) {
-                    items(results, key = { it.code }) { f ->
+                    items(results, key = { it.key }) { f ->
                         Row(
                             Modifier.fillMaxWidth().clickable { onPick(f) }.padding(vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -266,10 +279,10 @@ fun FlossPickerDialog(
                             )
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
-                                Text("DMC ${f.code}", fontWeight = FontWeight.Medium)
+                                Text(f.label, fontWeight = FontWeight.Medium)
                                 Text(f.name, style = MaterialTheme.typography.bodySmall)
                             }
-                            if (f.code in used) Text("в палитре", style = MaterialTheme.typography.labelSmall)
+                            if (f.key in used) Text("в палитре", style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 }
@@ -282,12 +295,12 @@ fun FlossPickerDialog(
 
 @Composable
 fun ColorEntryDialog(
-    entry: PaletteEntry, full: Int, half: Int,
+    entry: PaletteEntry, summary: String, progress: IntArray?, equivalents: List<Floss>,
     onDismiss: () -> Unit, onReplace: () -> Unit, onDelete: () -> Unit,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("DMC ${entry.floss.code}") },
+        title = { Text(entry.floss.label) },
         text = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Swatch(entry, selected = false, size = 56)
@@ -295,7 +308,13 @@ fun ColorEntryDialog(
                 Column {
                     Text(entry.floss.name)
                     Text("Символ: ${entry.symbol}")
-                    Text("Крестов: $full, полукрестов: $half", style = MaterialTheme.typography.bodySmall)
+                    Text(summary, style = MaterialTheme.typography.bodySmall)
+                    if (progress != null && progress[1] > 0) {
+                        Text("Вышито: ${progress[0]} из ${progress[1]} (${progress[0] * 100 / progress[1]}%)", style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (equivalents.isNotEmpty()) {
+                        Text("Похожие: " + equivalents.joinToString { it.label }, style = MaterialTheme.typography.bodySmall)
+                    }
                 }
             }
         },
@@ -309,19 +328,87 @@ fun ColorEntryDialog(
     )
 }
 
+/** Палитры ниток: выбор фирмы, импорт CSV, перевод схемы на другую фирму. */
+@Composable
+fun PalettesDialog(
+    catalogs: List<FlossCatalog>, activeBrand: String,
+    onDismiss: () -> Unit, onSelect: (String) -> Unit, onConvert: (String) -> Unit,
+    onImport: () -> Unit, onDelete: (String) -> Unit,
+) {
+    var confirmConvert by remember { mutableStateOf<String?>(null) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Палитры ниток") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text(
+                    "Отмеченная палитра используется в «Фото → схема» и открывается первой при добавлении нитки.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Spacer(Modifier.size(8.dp))
+                catalogs.forEach { c ->
+                    Row(Modifier.fillMaxWidth().clickable { onSelect(c.brand) }, verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = c.brand == activeBrand, onClick = { onSelect(c.brand) })
+                        Column(Modifier.weight(1f)) {
+                            Text(c.brand, fontWeight = FontWeight.Medium)
+                            Text("${c.flosses.size} цветов" + (if (c.brand == "DMC") " · встроенная" else ""), style = MaterialTheme.typography.bodySmall)
+                        }
+                        TextButton(onClick = { confirmConvert = c.brand }) { Text("Перевести") }
+                        if (c.brand != "DMC") IconButton(onClick = { onDelete(c.brand) }) { Icon(Icons.Default.Delete, "Удалить") }
+                    }
+                }
+                Spacer(Modifier.size(8.dp))
+                Text(
+                    "Свою палитру (Anchor, Madeira, Gamma, Ariadna…) можно загрузить файлом CSV: в каждой строке " +
+                        "код;название;R;G;B, например 403;Black;0;0;0. Подойдёт таблица из Excel или Google Таблиц, сохранённая как CSV.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = onImport) { Text("Загрузить CSV…") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Закрыть") } },
+    )
+    confirmConvert?.let { brand ->
+        AlertDialog(
+            onDismissRequest = { confirmConvert = null },
+            title = { Text("Перевести схему на $brand?") },
+            text = { Text("Каждая нитка заменится на ближайшую по цвету из палитры $brand. Похожие цвета могут слиться в один. Отменить можно кнопкой ↶.") },
+            confirmButton = { TextButton(onClick = { onConvert(brand); confirmConvert = null }) { Text("Перевести") } },
+            dismissButton = { TextButton(onClick = { confirmConvert = null }) { Text("Отмена") } },
+        )
+    }
+}
+
+@Composable
+fun NameDialog(title: String, initial: String, confirm: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    var name by remember { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { OutlinedTextField(name, { name = it.take(40) }, label = { Text("Название фирмы") }, singleLine = true) },
+        confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { onConfirm(name.trim()) }) { Text(confirm) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
+    )
+}
+
 @Composable
 fun StatsDialog(p: Pattern, onDismiss: () -> Unit) {
     var count by remember { mutableIntStateOf(14) }
     val counts = listOf(11, 14, 16, 18)
     val rows = remember(p, count) { FlossUsage.calculate(p, count, 2) }
     val totalFull = rows.sumOf { it.full }
-    val totalHalf = rows.sumOf { it.half }
+    val totalPartial = rows.sumOf { it.half + it.quarter + it.threeQuarter }
+    val totalKnots = rows.sumOf { it.knotsCount }
+    val totalBeads = rows.sumOf { it.beads }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Размер и расход ниток") },
         text = {
             Column {
-                Text("${p.width} × ${p.height} клеток, крестов $totalFull, полукрестов $totalHalf")
+                Text(
+                    "${p.width} × ${p.height} клеток, крестов $totalFull, частичных $totalPartial" +
+                        (if (totalKnots > 0) ", узелков $totalKnots" else "") + (if (totalBeads > 0) ", бисер $totalBeads шт" else ""),
+                )
                 Spacer(Modifier.size(8.dp))
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                     counts.forEachIndexed { i, c ->
@@ -347,12 +434,12 @@ fun StatsDialog(p: Pattern, onDismiss: () -> Unit) {
                             Swatch(r.entry, selected = false, size = 30)
                             Spacer(Modifier.width(10.dp))
                             Column(Modifier.weight(1f)) {
-                                Text("DMC ${r.entry.floss.code} · ${r.entry.floss.name}", style = MaterialTheme.typography.bodyMedium)
-                                Text("крестов ${r.full}, полукрестов ${r.half}", style = MaterialTheme.typography.bodySmall)
+                                Text("${r.entry.floss.label} · ${r.entry.floss.name}", style = MaterialTheme.typography.bodyMedium)
+                                Text(r.summary(), style = MaterialTheme.typography.bodySmall)
                             }
                             Text(String.format(Locale.US, "%.2f", r.skeins), style = MaterialTheme.typography.bodySmall)
                             Spacer(Modifier.width(6.dp))
-                            Text("${r.skeinsToBuy} мот.", fontWeight = FontWeight.Bold)
+                            Text(if (r.skeinsToBuy > 0) "${r.skeinsToBuy} мот." else "—", fontWeight = FontWeight.Bold)
                         }
                     }
                 }
